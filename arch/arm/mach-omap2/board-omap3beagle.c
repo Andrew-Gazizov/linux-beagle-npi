@@ -411,6 +411,39 @@ static void __init omap3beagle_enc28j60_init(void)
 static inline void __init omap3beagle_enc28j60_init(void) { return; }
 #endif
 
+#define MAX1233_GPIO_IRQ 133
+
+static struct spi_board_info pl_spi_board_info[] = {
+	{
+		.modalias	= "spidev",
+		.max_speed_hz	= 3000000, //48 Mbps
+		.bus_num	= 3,
+		.chip_select	= 1,
+		.mode = 0,
+	},
+	{
+		.modalias	= "max1233",
+		.max_speed_hz	= 3000000, //48 Mbps
+		.bus_num	= 3,
+		.chip_select		= 0,
+		.mode = 0,
+	},
+};
+
+
+static void __init pl_init_spi(void)
+{
+	if (gpio_request(MAX1233_GPIO_IRQ, "MAX1233_GPIO_IRQ") == 0 &&
+	    gpio_direction_input(MAX1233_GPIO_IRQ) == 0) {
+		pl_spi_board_info[1].irq = OMAP_GPIO_IRQ(MAX1233_GPIO_IRQ);
+		set_irq_type(pl_spi_board_info[1].irq, IRQ_TYPE_EDGE_FALLING);
+	} else
+		pl_spi_board_info[1].irq = 0;
+
+	spi_register_board_info(pl_spi_board_info,
+				ARRAY_SIZE(pl_spi_board_info));
+}
+
 #if defined(CONFIG_KS8851) || defined(CONFIG_KS8851_MODULE)
 
 #include <plat/mcspi.h>
@@ -1091,6 +1124,8 @@ static void __init omap3_beagle_init(void)
 		printk(KERN_INFO "Beagle expansionboard: registering TinCanTools Beacon LED driver\n");
 		platform_device_register(&ws2801_leds);
 	}
+
+	pl_init_spi();
 
 	usb_musb_init(NULL);
 	usbhs_init(&usbhs_bdata);
