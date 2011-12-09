@@ -1004,12 +1004,16 @@ static void __init omap3_beagle_init(void)
 
 	if(!strcmp(expansionboard_name, "bbtoys-wifi"))
 	{
+#ifdef CONFIG_WL12XX_PLATFORM_DATA
 		if (wl12xx_set_platform_data(&omap_beagle_wlan_data))
 			pr_err("error setting wl12xx data\n");
 		printk(KERN_INFO "Beagle expansionboard: registering wl12xx bt platform device\n");
 		platform_device_register(&wl12xx_device);
 		printk(KERN_INFO "Beagle expansionboard: registering wl12xx wifi platform device\n");
 		platform_device_register(&omap_vwlan_device);
+#else
+	pr_err("wl12xx disabled in config\n");
+#endif
 	}
 
 	if(!strcmp(expansionboard2_name, "bbtoys-ulcd"))
