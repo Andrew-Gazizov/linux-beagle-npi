@@ -36,6 +36,7 @@
 #include <linux/netdevice.h>
 #include <linux/if_ether.h>
 #include <linux/i2c/tsc2007.h>
+#include <linux/spi/max1233.h>
 
 #include <mach/hardware.h>
 #include <asm/mach-types.h>
@@ -413,6 +414,15 @@ static inline void __init omap3beagle_enc28j60_init(void) { return; }
 
 #define MAX1233_GPIO_IRQ 133
 
+static struct max1233_platform_data max1233_config = {
+	.model = 1233,
+	.stopacq_polarity = 1,
+	.first_conversion_delay = 1,
+	.acquisition_time = 1,
+	.averaging = 1,
+	.pen_down_acc_interval = 1,
+};
+
 static struct spi_board_info pl_spi_board_info[] = {
 	{
 		.modalias	= "spidev",
@@ -423,10 +433,14 @@ static struct spi_board_info pl_spi_board_info[] = {
 	},
 	{
 		.modalias	= "max1233",
-		.max_speed_hz	= 3000000, //48 Mbps
+		.max_speed_hz	= 1000000,
 		.bus_num	= 3,
 		.chip_select		= 0,
+		//.mode = SPI_CPOL,
+		//.mode = SPI_CPHA,
+		//.mode = SPI_CPHA | SPI_CPOL,
 		.mode = 0,
+		.platform_data  = &max1233_config,
 	},
 };
 

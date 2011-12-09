@@ -60,13 +60,13 @@
 
 
 /*
-#ifndef CONFIG_FLIP_TS_X 
-#define CONFIG_FLIP_TS_X y
-#endif
+  #ifndef CONFIG_FLIP_TS_X 
+  #define CONFIG_FLIP_TS_X y
+  #endif
 
-#ifndef CONFIG_FLIP_TS_Y 
-#define CONFIG_FLIP_TS_Y y
-#endif
+  #ifndef CONFIG_FLIP_TS_Y 
+  #define CONFIG_FLIP_TS_Y y
+  #endif
 */
 
 
@@ -116,7 +116,7 @@
 
 
 /*----------------ADC Control Register  ----------------------------------------------------------*/
-									/* READ				WRITE */
+/* READ				WRITE */
 
 #define MAX1233_PENSTS(x)			((x & 0x1) << 15)	/* Touch detected		use TSOP */
 #define MAX1233_ADSTS(x)			((x & 0x1) << 14)	/* conv.data avail		use TSOP */
@@ -155,14 +155,14 @@
 
 
 /*----------------DAC Control Register  ----------------------------------------------------------*/
-									/* READ				WRITE */
+/* READ				WRITE */
 
 #define MAX1233_DAC_ENABLE(x)			((x & 0x1) << 15)	/* 		State of DAC */
 
 
 
 /*----------------KEYPAD Control Register  ----------------------------------------------------------*/
-									/* READ				WRITE */
+/* READ				WRITE */
 
 #define MAX1233_KEYSTS1(x)			((x & 0x1) << 15)	/* PRESS detected		use KEYOP */
 #define MAX1233_KEYSTS0(x)			((x & 0x1) << 14)	/* conv.data avail		use KEYOP */
@@ -180,7 +180,7 @@
 
 
 /*----------------KEYPAD MASK Control Register  ----------------------------------------------------------*/
-									/* READ				WRITE */
+/* READ				WRITE */
 
 #define MAX1233_KEY15(x)			((x & 0x1) << 15)	/* 		detect KEY(4,4) */
 #define MAX1233_KEY14(x)			((x & 0x1) << 14)	/* 		detect KEY(3,4) */
@@ -201,7 +201,7 @@
 
 
 /*----------------KEYPAD COLUMN MASK Control Register  ----------------------------------------------------------*/
-									/* READ				WRITE */
+/* READ				WRITE */
 
 #define MAX1233_COLMASK4(x)			((x & 0x1) << 15)	/* 		detect KEYS(*,4) */
 #define MAX1233_COLMASK3(x)			((x & 0x1) << 14)	/* 		detect KEYS(*,3) */
@@ -210,7 +210,7 @@
 
 
 /*----------------GPIO Control Register  ----------------------------------------------------------*/
-									/* READ				WRITE */
+/* READ				WRITE */
 
 #define MAX1233_GP7(x)			((x & 0x1) << 15)	/* 		use as GPIO /KEY */
 #define MAX1233_GP6(x)			((x & 0x1) << 14)	/* 		use as GPIO /KEY */
@@ -222,7 +222,7 @@
 #define MAX1233_GP0(x)			((x & 0x1) << 8)	/* 		use as GPIO /KEY */
 
 /*----------------GPIO PULLUP Control Register  ----------------------------------------------------------*/
-									/* READ				WRITE */
+/* READ				WRITE */
 
 #define MAX1233_PU7(x)			((x & 0x1) << 15)	/* 		disable PULLUP  */
 #define MAX1233_PU6(x)			((x & 0x1) << 14)	/* 		disable PULLUP */
@@ -330,6 +330,42 @@ static int device_suspended(struct device *dev)
 	return dev->power.power_state.event != PM_EVENT_ON || ts->disabled;
 }
 
+static u8 revert8bit(u8 in)
+{
+	return in;
+	uint8_t v = in;     // input bits to be reversed
+	uint8_t r = v; // r will be reversed bits of v; first get LSB of v
+	int s = sizeof(v) * 8 - 1; // extra shift needed at end
+
+	for (v >>= 1; v; v >>= 1)
+	{   
+		r <<= 1;
+		r |= v & 1;
+		s--;
+	}
+	r <<= s; // shift when v's highest bits are zero
+
+	return r;
+}
+
+union un16 {
+	u8 bytes[2];
+	u16 word;
+};
+
+static u16 revert_word(u16 val)
+{
+	union un16 reg_val;
+	reg_val.word = val;
+
+	u8 tmp = reg_val.bytes[0];
+	reg_val.bytes[0] = reg_val.bytes[1];
+	reg_val.bytes[1] = tmp;
+
+	reg_val.bytes[0] = revert8bit(reg_val.bytes[0]);
+	reg_val.bytes[1] = revert8bit(reg_val.bytes[1]);
+	return reg_val.word;
+}
 
 /* this has been worked on and changed from 7877 */
 /* reg has to carry complete page and adress description read flag will be set staticly */
@@ -344,24 +380,27 @@ static int max1233_read(struct device *dev, u16 reg, u16 *val)
 		return -ENOMEM;
 
 	spi_message_init(&req->msg);
-
-	req->txbuf[0] = (u16) MAX1233_RDADD(reg);
+	req->txbuf[0] = revert_word((u16)MAX1233_RDADD(reg));
+	
 	req->txbuf[1] = 0; //following dummys
 	req->xfer[0].tx_buf = req->txbuf;
 	req->xfer[0].rx_buf = req->rxbuf;
 
 	req->xfer[0].len = 4;
 
+	req->rxbuf[0] = 0xFF;
+	req->rxbuf[1] = 0xFF;
+
 	spi_message_add_tail(&req->xfer[0], &req->msg);
 
 	status = spi_sync(spi, &req->msg);
 
 	//printk("max1233_read: (#%X)> %X (status: %X)...(command: %X)\n", reg, buf[1], status, (u16) MAX1233_RDADD(reg));
-
+	//printk(KERN_INFO "%s: we read %X and %X\n", __func__, req->rxbuf[0], req->rxbuf[1]);
 	if (req->msg.status)
 		status = req->msg.status;
 
-	if (!status) *val = req->rxbuf[1]; /* return if no error, else error will return*/
+	if (!status) *val = revert_word(req->rxbuf[1]); /* return if no error, else error will return*/
 
 	kfree(req);
 	return status;
@@ -377,9 +416,9 @@ static int max1233_write(struct device *dev, u16 reg, u16 val)
 		return -ENOMEM;
 
 	spi_message_init(&req->msg);
-
-	req->txbuf[0] = (u16) MAX1233_WRADD (reg);
-	req->txbuf[1] = val;
+	req->txbuf[0] =  revert_word((u16) MAX1233_WRADD (reg));
+	req->txbuf[1] = revert_word(val);
+//	printk(KERN_INFO "%s: we send %X and %X\n", __func__, req->txbuf[0], req->txbuf[1]);
 	
 	req->xfer[0].tx_buf = req->txbuf;
 	req->xfer[0].len = 4;
@@ -398,16 +437,16 @@ static int max1233_write(struct device *dev, u16 reg, u16 val)
 	return status;
 }
 
-#define SHOW(name) static ssize_t \
-name ## _show(struct device *dev, struct device_attribute *attr, char *buf) \
-{ \
-	ssize_t v = max1233_read(dev, \
-			MAX1233_READ_CHAN(name)); \
-	if (v < 0) \
-		return v; \
-	return sprintf(buf, "%u\n", (unsigned) v); \
-} \
-static DEVICE_ATTR(name, S_IRUGO, name ## _show, NULL);
+#define SHOW(name) static ssize_t					\
+	name ## _show(struct device *dev, struct device_attribute *attr, char *buf) \
+	{								\
+		ssize_t v = max1233_read(dev,				\
+					 MAX1233_READ_CHAN(name));	\
+		if (v < 0)						\
+			return v;					\
+		return sprintf(buf, "%u\n", (unsigned) v);		\
+	}								\
+	static DEVICE_ATTR(name, S_IRUGO, name ## _show, NULL);
 
 //SHOW(aux1)
 //SHOW(aux2)
@@ -417,8 +456,37 @@ static DEVICE_ATTR(name, S_IRUGO, name ## _show, NULL);
 //SHOW(temp1)
 //SHOW(temp2)
 
+
+static ssize_t bat1_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct max1233	*ts = dev_get_drvdata(dev);
+	u16 val, verify;
+	
+	u16 cmd_crtl1 = /*MAX1233_TSOP_DET_SCAN_IRQ |*/
+		MAX1233_ADCSCANSEL(MAX1233_ADCSCAN_MEAS_BAT1) |
+		MAX1233_RES(3) |//3 - 12 bit adc resolution
+		MAX1233_AVG(0) |//1 - 4 data average, 2 - 8 data average
+		MAX1233_CNR(3) |//2 - 10us/sample, 3 - 100us/sample
+		MAX1233_STLTIME(3) |//3 - setting time 1ms, 4 - 5ms
+		MAX1233_REFV(1);
+	max1233_write(dev, MAX1233_PAGEADDR(MAX1233_PAGE1, MAX1233_REG_ADCctrl), cmd_crtl1);
+	max1233_read(dev, MAX1233_PAGEADDR(MAX1233_PAGE1, MAX1233_REG_ADCctrl), &cmd_crtl1);
+//	printk(KERN_INFO "%s: we read %X\n", __func__, cmd_crtl1);
+	msleep(2);
+	max1233_read(dev, MAX1233_PAGEADDR(MAX1233_PAGE1, MAX1233_REG_ADCctrl), &cmd_crtl1);
+//	printk(KERN_INFO "%s: we read %X\n", __func__, cmd_crtl1);
+	ssize_t v = max1233_read(dev,  MAX1233_PAGEADDR(MAX1233_PAGE0, MAX1233_REG_BAT1), &val);	
+	if (v < 0)						
+		return v;
+	max1233_write(dev, MAX1233_PAGEADDR(MAX1233_PAGE1, MAX1233_REG_ADCctrl), ts->cmd_crtl1);
+	max1233_read(dev, MAX1233_PAGEADDR(MAX1233_PAGE0, MAX1233_REG_X), &verify); /*just make sure we startet good, ping max1233 to activate penirq*/
+
+	return sprintf(buf, "%u\n", (unsigned) val);		
+}								
+static DEVICE_ATTR(bat1, S_IRUGO, bat1_show, NULL);
+
 static ssize_t max1233_disable_show(struct device *dev,
-				     struct device_attribute *attr, char *buf)
+				    struct device_attribute *attr, char *buf)
 {
 	struct max1233	*ts = dev_get_drvdata(dev);
 
@@ -446,7 +514,7 @@ static ssize_t max1233_disable_store(struct device *dev,
 static DEVICE_ATTR(disable, 0664, max1233_disable_show, max1233_disable_store);
 
 static ssize_t max1233_dac_show(struct device *dev,
-				     struct device_attribute *attr, char *buf)
+				struct device_attribute *attr, char *buf)
 {
 	struct max1233	*ts = dev_get_drvdata(dev);
 	u16 i;
@@ -460,8 +528,8 @@ static ssize_t max1233_dac_show(struct device *dev,
 }
 
 static ssize_t max1233_dac_store(struct device *dev,
-				     struct device_attribute *attr,
-				     const char *buf, size_t count)
+				 struct device_attribute *attr,
+				 const char *buf, size_t count)
 {
 	struct max1233 *ts = dev_get_drvdata(dev);
 	char *endp;
@@ -478,13 +546,10 @@ static ssize_t max1233_dac_store(struct device *dev,
 
 static DEVICE_ATTR(dac, 0664, max1233_dac_show, max1233_dac_store);
 
-
-
-
 static u16 regaddr; /* this stores the addresses for operation */
 
 static ssize_t max1233_regaddr_show(struct device *dev,
-				     struct device_attribute *attr, char *buf)
+				    struct device_attribute *attr, char *buf)
 {
 	struct max1233	*ts = dev_get_drvdata(dev);
 
@@ -518,8 +583,8 @@ static ssize_t max1233_pageaddr_show(struct device *dev,
 }
 
 static ssize_t max1233_pageaddr_store(struct device *dev,
-				     struct device_attribute *attr,
-				     const char *buf, size_t count)
+				      struct device_attribute *attr,
+				      const char *buf, size_t count)
 {
 	struct max1233 *ts = dev_get_drvdata(dev);
 	char *endp;
@@ -534,7 +599,7 @@ static DEVICE_ATTR(pageaddr, 0664, max1233_pageaddr_show, max1233_pageaddr_store
 
 
 static ssize_t max1233_regio_show(struct device *dev,
-				     struct device_attribute *attr, char *buf)
+				  struct device_attribute *attr, char *buf)
 {
 	struct max1233	*ts = dev_get_drvdata(dev);
 	
@@ -548,8 +613,8 @@ static ssize_t max1233_regio_show(struct device *dev,
 }
 
 static ssize_t max1233_regio_store(struct device *dev,
-				     struct device_attribute *attr,
-				     const char *buf, size_t count)
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
 {
 	struct max1233 *ts = dev_get_drvdata(dev);
 	char *endp;
@@ -573,7 +638,7 @@ static DEVICE_ATTR(regio, 0664, max1233_regio_show, max1233_regio_store);
 
 
 static ssize_t max1233_dumpio_show(struct device *dev,
-				     struct device_attribute *attr, char *buf)
+				   struct device_attribute *attr, char *buf)
 {
 	struct max1233	*ts = dev_get_drvdata(dev);
 
@@ -631,12 +696,10 @@ static DEVICE_ATTR(dumpio, 0664, max1233_dumpio_show, NULL);
 
 
 
-
-
 static u16 doirqio; /* this stores the addresses for operation */
 
 static ssize_t max1233_doirqio_show(struct device *dev,
-				     struct device_attribute *attr, char *buf)
+				    struct device_attribute *attr, char *buf)
 {
 	struct max1233	*ts = dev_get_drvdata(dev);
 
@@ -670,15 +733,15 @@ static ssize_t max1233_toggleio_show(struct device *dev,
 }
 
 static ssize_t max1233_toggleio_store(struct device *dev,
-				     struct device_attribute *attr,
-				     const char *buf, size_t count)
+				      struct device_attribute *attr,
+				      const char *buf, size_t count)
 {
 	struct max1233 *ts = dev_get_drvdata(dev);
 	char *endp;
 
 	toggleio = simple_strtoul(buf, &endp, 10);
 
-		if(toggleio) spi_async(ts->spi, &ts->msg); /* toggle retrieve of PAGE0 first 10 words*/
+	if(toggleio) spi_async(ts->spi, &ts->msg); /* toggle retrieve of PAGE0 first 10 words*/
 
 
 	return count;
@@ -694,7 +757,7 @@ static DEVICE_ATTR(toggleio, 0664, max1233_toggleio_show, max1233_toggleio_store
 static u32 ioaddr; /* this stores the addresses for operation */
 
 static ssize_t max1233_ioaddr_show(struct device *dev,
-				     struct device_attribute *attr, char *buf)
+				   struct device_attribute *attr, char *buf)
 {
 	struct max1233	*ts = dev_get_drvdata(dev);
 
@@ -702,8 +765,8 @@ static ssize_t max1233_ioaddr_show(struct device *dev,
 }
 
 static ssize_t max1233_ioaddr_store(struct device *dev,
-				     struct device_attribute *attr,
-				     const char *buf, size_t count)
+				    struct device_attribute *attr,
+				    const char *buf, size_t count)
 {
 	struct max1233 *ts = dev_get_drvdata(dev);
 	char *endp;
@@ -716,13 +779,10 @@ static ssize_t max1233_ioaddr_store(struct device *dev,
 static DEVICE_ATTR(ioaddr, 0664, max1233_ioaddr_show, max1233_ioaddr_store);
 
 
-
-
-
 static u16 doio; /* this stores the addresses for operation */
 
 static ssize_t max1233_doio_show(struct device *dev,
-				     struct device_attribute *attr, char *buf)
+				 struct device_attribute *attr, char *buf)
 {
 	struct max1233	*ts = dev_get_drvdata(dev);
 
@@ -733,8 +793,8 @@ static ssize_t max1233_doio_show(struct device *dev,
 }
 
 static ssize_t max1233_doio_store(struct device *dev,
-				     struct device_attribute *attr,
-				     const char *buf, size_t count)
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
 {
 	struct max1233 *ts = dev_get_drvdata(dev);
 	char *endp;
@@ -749,38 +809,24 @@ static ssize_t max1233_doio_store(struct device *dev,
 static DEVICE_ATTR(doio, 0664, max1233_doio_show, max1233_doio_store);
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 static struct attribute *max1233_attributes[] = {
 /*	&dev_attr_temp1.attr,
 	&dev_attr_temp2.attr,
 	&dev_attr_aux1.attr,
-	&dev_attr_aux2.attr,
-	&dev_attr_bat1.attr,
+	&dev_attr_aux2.attr,	
 	&dev_attr_bat2.attr,*/
+	&dev_attr_bat1.attr,
 	&dev_attr_disable.attr,
 	&dev_attr_dac.attr,
 	//&dev_attr_gpio4.attr,
-&dev_attr_regaddr.attr,
-&dev_attr_pageaddr.attr,
-&dev_attr_regio.attr,
-&dev_attr_dumpio.attr,
-&dev_attr_doirqio.attr,
-&dev_attr_toggleio.attr,
-&dev_attr_ioaddr.attr,
-&dev_attr_doio.attr,
+	&dev_attr_regaddr.attr,
+	&dev_attr_pageaddr.attr,
+	&dev_attr_regio.attr,
+	&dev_attr_dumpio.attr,
+	&dev_attr_doirqio.attr,
+	&dev_attr_toggleio.attr,
+	&dev_attr_ioaddr.attr,
+	&dev_attr_doio.attr,
 
 	NULL
 };
@@ -806,10 +852,11 @@ static void max1233_rx(void *ads)
 	unsigned		p2;
 	u16			x, y, z1, z2;
 
-	x = ts->conversion_data[MAX1233_SEQ_XPOS] & MAX_12BIT;
-	y = ts->conversion_data[MAX1233_SEQ_YPOS]& MAX_12BIT;
-	z1 = ts->conversion_data[MAX1233_SEQ_Z1] & MAX_12BIT;
-	z2 = ts->conversion_data[MAX1233_SEQ_Z2] & MAX_12BIT;
+
+	x = revert_word(ts->conversion_data[MAX1233_SEQ_XPOS]) & MAX_12BIT;
+	y = revert_word(ts->conversion_data[MAX1233_SEQ_YPOS]) & MAX_12BIT;
+	z1 = revert_word(ts->conversion_data[MAX1233_SEQ_Z1]) & MAX_12BIT;
+	z2 = revert_word(ts->conversion_data[MAX1233_SEQ_Z2]) & MAX_12BIT;
 
 	/* range filtering */
 	if (x == MAX_12BIT)
@@ -822,16 +869,16 @@ static void max1233_rx(void *ads)
 /* AD7877 orig, this was equation 1*/
 
 /*
-		Rt = z2;
-		Rt -= z1;
-		Rt *= x;
-		Rt *= ts->x_plate_ohms;
-		Rt /= z1;
-		Rt = (Rt + 2047) >> 12;
-		Rt &= MAX_12BIT;	//added, FIXME
+  Rt = z2;
+  Rt -= z1;
+  Rt *= x;
+  Rt *= ts->x_plate_ohms;
+  Rt /= z1;
+  Rt = (Rt + 2047) >> 12;
+  Rt &= MAX_12BIT;	//added, FIXME
 */
 
-
+#if 0
 		Rt = MAX_12BIT - z1 ;
 		Rt *= x;
 		Rt *= ts->x_plate_ohms;
@@ -842,7 +889,16 @@ static void max1233_rx(void *ads)
 
 		Rt -= p2;
 		Rt >>= 12;
+#else
+		Rt = (MAX_12BIT - z1);
+		Rt *= x;
+		Rt *= ts->x_plate_ohms;
+		Rt /= z1 * z1;
 
+		p2 = y * ts->y_plate_ohms;
+		Rt -= p2;
+		Rt >>= 12;
+#endif
 
 
 
@@ -859,7 +915,7 @@ static void max1233_rx(void *ads)
 	y = ts->ymax - y + ts->ymin;
 #endif
 
-Rt = 1000;
+//	Rt = 1000;
 
 
 	if (Rt) {
@@ -877,7 +933,7 @@ Rt = 1000;
 #ifdef	VERBOSE
 	if (Rt)
 		pr_debug("%s: %d/%d/%d%s\n", ts->spi->dev.bus_id,
-			x, y, Rt, Rt ? "" : " UP");
+			 x, y, Rt, Rt ? "" : " UP");
 #endif
 
 }
@@ -924,7 +980,6 @@ static irqreturn_t max1233_irq(int irq, void *handle)
 	spin_unlock_irqrestore(&ts->lock, flags);
 
 	status = spi_async(ts->spi, &ts->msg); /* toggle retrieve of PAGE0 first 10 words*/
-	//printk("max1233_irq: retrieved...\n");
 
 	if (status)
 		dev_err(&ts->spi->dev, "spi_sync --> %d\n", status);
@@ -1042,12 +1097,12 @@ static inline void max1233_setup_ts_def_msg(struct spi_device *spi, struct max12
 
 
 	ts->cmd_crtl1 = MAX1233_TSOP_DET_SCAN_IRQ |
-			MAX1233_ADCSCANSEL(MAX1233_ADCSCAN_MEAS_XYZ) |
-			MAX1233_RES(3) |
-			MAX1233_AVG(1) |
-			MAX1233_CNR(2) |
-			MAX1233_STLTIME(3) |
-			MAX1233_REFV(1);
+		MAX1233_ADCSCANSEL(MAX1233_ADCSCAN_MEAS_XYZ) |
+		MAX1233_RES(3) |//3 - 12 bit adc resolution
+		MAX1233_AVG(0) |//1 - 4 data average, 2 - 8 data average
+		MAX1233_CNR(1) |//2 - 10us/sample, 3 - 100us/sample
+		MAX1233_STLTIME(3) |//3 - setting time 1ms, 4 - 5ms
+		MAX1233_REFV(1);
 
 	max1233_write((struct device *) spi, MAX1233_PAGEADDR(MAX1233_PAGE1, MAX1233_REG_ADCctrl), ts->cmd_crtl1); //setup
 
@@ -1065,7 +1120,7 @@ static inline void max1233_setup_ts_def_msg(struct spi_device *spi, struct max12
 	m->context = ts; /*HANDLE to the callback*/
 
 
-	ts->conversion_send[MAX1233_SEQ_SND] = (u16) MAX1233_RDADD(MAX1233_PAGEADDR(MAX1233_PAGE0, MAX1233_REG_X));
+	ts->conversion_send[MAX1233_SEQ_SND] = revert_word((u16) MAX1233_RDADD(MAX1233_PAGEADDR(MAX1233_PAGE0, MAX1233_REG_X)));
 
 	ts->xfer[0].tx_buf = ts->conversion_send;
 	ts->xfer[0].rx_buf = ts->conversion_data; /*index 1 and 2 are the 32 clocks dummys*/
@@ -1073,8 +1128,6 @@ static inline void max1233_setup_ts_def_msg(struct spi_device *spi, struct max12
 	ts->xfer[0].len = MAX1233_NR_SENSE*2; /*+1 word is already done in the enum*/
 
 	spi_message_add_tail(&ts->xfer[0], m);
-
-
 }
 
 static int __devinit max1233_probe(struct spi_device *spi)
@@ -1123,8 +1176,8 @@ static int __devinit max1233_probe(struct spi_device *spi)
 
 	ts->model = pdata->model ? : 1233;
 	ts->vref_delay_usecs = pdata->vref_delay_usecs ? : 100;
-	ts->x_plate_ohms = pdata->x_plate_ohms ? : 400;
-	ts->y_plate_ohms = pdata->y_plate_ohms ? : 400;
+	ts->x_plate_ohms = 255;//pdata->x_plate_ohms ? : 400;
+	ts->y_plate_ohms = 700;//pdata->y_plate_ohms ? : 400;
 	ts->pressure_max = pdata->pressure_max ? : ~0;
 
 	ts->xmin = pdata->x_min;
@@ -1145,32 +1198,36 @@ static int __devinit max1233_probe(struct spi_device *spi)
 	input_dev->phys = ts->phys;
 	input_dev->dev.parent = &spi->dev;
 
+
+	input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS);
+	input_dev->keybit[BIT_WORD(BTN_TOUCH)] = BIT_MASK(BTN_TOUCH);
+#if 0
 	__set_bit(EV_ABS, input_dev->evbit);
 	__set_bit(ABS_X, input_dev->absbit);
 	__set_bit(ABS_Y, input_dev->absbit);
 	__set_bit(ABS_PRESSURE, input_dev->absbit);
-
+#endif
 	input_set_abs_params(input_dev, ABS_X,
-			pdata->x_min ? : 0,
-			pdata->x_max ? : MAX_12BIT,
-			0, 0);
+			     pdata->x_min ? : 0,
+			     pdata->x_max ? : MAX_12BIT,
+			     0, 0);
 	input_set_abs_params(input_dev, ABS_Y,
-			pdata->y_min ? : 0,
-			pdata->y_max ? : MAX_12BIT,
-			0, 0);
+			     pdata->y_min ? : 0,
+			     pdata->y_max ? : MAX_12BIT,
+			     0, 0);
 	input_set_abs_params(input_dev, ABS_PRESSURE,
-			pdata->pressure_min, 
-			pdata->pressure_max, 
-			0, 0);
+			     pdata->pressure_min, 
+			     pdata->pressure_max, 
+			     0, 0);
 
 	max1233_write((struct device *) spi, MAX1233_PAGEADDR(MAX1233_PAGE1, MAX1233_REG_KPKeyMask), 0xF00F); /* set keymask and read it again*/
 
 	max1233_read((struct device *) spi, MAX1233_PAGEADDR(MAX1233_PAGE1, MAX1233_REG_KPKeyMask), &verify);
 
 	if (verify != 0xF00F){
-	//if (false){
-		printk(KERN_ERR "%s:esFailed to probe %s, (%u != 0xF00F)\n", dev_name(&spi->dev),
-			 input_dev->name, verify);
+		//if (false){
+		printk(KERN_ERR "%s:esFailed to probe %s, (%X != 0xF00F)\n", dev_name(&spi->dev),
+		       input_dev->name, verify);
 		err = -ENODEV;
 		goto err_free_mem;
 	}
@@ -1281,6 +1338,7 @@ static struct spi_driver max1233_driver = {
 
 static int __init max1233_init(void)
 {
+	printk(KERN_INFO "%s: init\n", __func__);
 	return spi_register_driver(&max1233_driver);
 }
 module_init(max1233_init);
