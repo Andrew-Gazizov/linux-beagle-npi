@@ -1035,8 +1035,20 @@ static void __init beagle_opp_init(void)
 	return;
 }
 
+#define POWEROFF_GPIO 15
+
+static void omap3_pl_poweroff(void)
+{
+	gpio_request(POWEROFF_GPIO, "POWEROFF");
+	gpio_direction_output(POWEROFF_GPIO, 0);
+	gpio_set_value(POWEROFF_GPIO, 1);
+	udelay(1000);
+	gpio_set_value(POWEROFF_GPIO, 0);
+}
+
 static void __init omap3_beagle_init(void)
 {
+	pm_power_off = omap3_pl_poweroff;
 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
 	omap3_beagle_init_rev();
 	omap3_beagle_i2c_init();
