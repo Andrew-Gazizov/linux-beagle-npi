@@ -99,6 +99,50 @@ static struct {
 	.lcd_pwren = 156
 };
 
+#define DEFINE_KEY(row, col, keycode) ((row << 24) | (col << 16) | keycode)
+
+static const uint32_t pl_keys[] = {
+	DEFINE_KEY(0, 2, KEY_C),
+	DEFINE_KEY(0, 0, KEY_H),
+	DEFINE_KEY(0, 1, KEY_1),
+	DEFINE_KEY(1, 2, KEY_2),
+	DEFINE_KEY(1, 0, KEY_3),
+	DEFINE_KEY(1, 1, KEY_4),
+	DEFINE_KEY(2, 2, KEY_5),
+	DEFINE_KEY(2, 0, KEY_6),
+
+	DEFINE_KEY(2, 1, KEY_8),
+	DEFINE_KEY(3, 0, KEY_9),
+	
+	DEFINE_KEY(3, 1, KEY_7),
+
+	DEFINE_KEY(7, 2, KEY_SLASH),
+	DEFINE_KEY(4, 0, KEY_KPASTERISK),
+	DEFINE_KEY(5, 2, KEY_MINUS),
+	DEFINE_KEY(6, 2, KEY_KPPLUS),
+
+	DEFINE_KEY(4, 2, KEY_S),
+	DEFINE_KEY(3, 2, KEY_V),
+	DEFINE_KEY(7, 1, KEY_K),
+	DEFINE_KEY(7, 0, KEY_B),
+	DEFINE_KEY(6, 1, KEY_U),
+	DEFINE_KEY(6, 0, KEY_LEFTBRACE),
+	DEFINE_KEY(5, 1, KEY_N),
+	DEFINE_KEY(5, 0, KEY_P),
+	DEFINE_KEY(4, 1, KEY_A),
+};
+
+static struct matrix_keymap_data max7359_data = {
+	.keymap = pl_keys,
+	.keymap_size = ARRAY_SIZE(pl_keys),
+};
+
+static struct i2c_board_info __initdata pl_i2c_devices_boardinfo[] = {
+	{
+		I2C_BOARD_INFO("max7359", 0x3a),
+		.platform_data = &max7359_data,
+	},
+};
 /*
  * This device path represents the onboard USB <-> Ethernet bridge
  * on the BeagleBoard-xM which needs a random or all-zeros
@@ -323,6 +367,7 @@ static struct platform_device omap_vwlan_device = {
 	},
 };
 #endif
+#define OMAP3BEAGLE_GPIO_MAX7359_IRQ 145
 
 #if defined(CONFIG_ENC28J60) || defined(CONFIG_ENC28J60_MODULE)
 
@@ -761,7 +806,25 @@ static int __init omap3_beagle_i2c_init(void)
 	omap3_pmic_init("twl4030", &beagle_twldata);
 	/* Bus 3 is attached to the DVI port where devices like the pico DLP
 	 * projector don't work reliably with 400kHz */
-	omap_register_i2c_bus(3, 100, beagle_i2c_eeprom, ARRAY_SIZE(beagle_i2c_eeprom));
+//	omap_register_i2c_bus(3, 100, beagle_i2c_eeprom, ARRAY_SIZE(beagle_i2c_eeprom));
+
+	omap_mux_init_gpio(OMAP3BEAGLE_GPIO_MAX7359_IRQ, OMAP_PIN_INPUT);
+	if ((gpio_request(OMAP3BEAGLE_GPIO_MAX7359_IRQ, "MAX7359_IRQ") == 0) &&
+	    (gpio_direction_input(OMAP3BEAGLE_GPIO_MAX7359_IRQ) == 0)) {
+		gpio_export(OMAP3BEAGLE_GPIO_MAX7359_IRQ, 1);
+		pl_i2c_devices_boardinfo[0].irq	= OMAP_GPIO_IRQ(OMAP3BEAGLE_GPIO_MAX7359_IRQ);
+		set_irq_type(pl_i2c_devices_boardinfo[0].irq, /*IRQ_TYPE_LEVEL_LOW*/IRQ_TYPE_EDGE_FALLING);
+	} else {
+		printk(KERN_ERR "could not obtain gpio for MAX7359_IRQ\n");
+		return -1;
+	}
+
+
+	/* Bus 3 is attached to the DVI port where devices like the pico DLP
+	 * projector don't work reliably with 400kHz */
+	omap_register_i2c_bus(3, 100, pl_i2c_devices_boardinfo, ARRAY_SIZE(pl_i2c_devices_boardinfo));
+	
+
 	return 0;
 }
 

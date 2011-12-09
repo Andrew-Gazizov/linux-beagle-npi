@@ -37,6 +37,8 @@
 #define MAX7359_REG_KEYREP	0x05
 #define MAX7359_REG_SLEEP	0x06
 
+#define MAX7359_KEYFIFO_FIFO_NOT_EMPTY (1 << 7)
+#define MAX7359_MAX_FIFOLEN 1000
 /*
  * Configuration register bits
  */
@@ -63,6 +65,9 @@ struct max7359_keypad {
 	struct input_dev *input_dev;
 	struct i2c_client *client;
 };
+
+static int verbose_level = 0;
+module_param(verbose_level, int, 0644);
 
 static int max7359_write_reg(struct i2c_client *client, u8 reg, u8 val)
 {
@@ -110,20 +115,37 @@ static irqreturn_t max7359_interrupt(int irq, void *dev_id)
 	struct max7359_keypad *keypad = dev_id;
 	struct input_dev *input_dev = keypad->input_dev;
 	int val, row, col, release, code;
+	static int last_code = -1;
 
-	val = max7359_read_reg(keypad->client, MAX7359_REG_KEYFIFO);
-	row = val & 0x7;
-	col = (val >> 3) & 0x7;
-	release = val & 0x40;
+	do {
+		val = max7359_read_reg(keypad->client, MAX7359_REG_KEYFIFO);
+		row = val & 0x7;
+		col = (val >> 3) & 0x7;
+		release = val & 0x40;
 
-	code = MATRIX_SCAN_CODE(row, col, MAX7359_ROW_SHIFT);
+		code = MATRIX_SCAN_CODE(row, col, MAX7359_ROW_SHIFT);
 
-	dev_dbg(&keypad->client->dev,
-		"key[%d:%d] %s\n", row, col, release ? "release" : "press");
+		dev_dbg(&keypad->client->dev,
+			"key[%d:%d] %s\n", row, col, release ? "release" : "press");
+		if (verbose_level > 0)
+			printk(KERN_INFO "%s: key[%d:%d] %s, code %d\n", __func__, row, col, release ? "release" : "press", code);
 
-	input_event(input_dev, EV_MSC, MSC_SCAN, code);
-	input_report_key(input_dev, keypad->keycodes[code], !release);
-	input_sync(input_dev);
+//		input_event(input_dev, EV_MSC, MSC_SCAN, code);
+
+		if (!release && row == 6 && col == 7 && last_code != -1) {//autorepeat
+			input_report_key(input_dev, keypad->keycodes[last_code], 0);
+			input_sync(input_dev);
+			input_report_key(input_dev, keypad->keycodes[last_code], 1);
+		} else {
+			input_report_key(input_dev, keypad->keycodes[code], !release);
+			if (!release)
+				last_code = code;
+			else
+				last_code = -1;
+		}
+
+		input_sync(input_dev);
+	} while (val & MAX7359_KEYFIFO_FIFO_NOT_EMPTY);
 
 	return IRQ_HANDLED;
 }
@@ -166,15 +188,16 @@ static void max7359_close(struct input_dev *dev)
 static void max7359_initialize(struct i2c_client *client)
 {
 	max7359_write_reg(client, MAX7359_REG_CONFIG,
-		MAX7359_CFG_INTERRUPT | /* Irq clears after host read */
+//		MAX7359_CFG_INTERRUPT | /* Irq clears after host read */
 		MAX7359_CFG_KEY_RELEASE | /* Key release enable */
 		MAX7359_CFG_WAKEUP); /* Key press wakeup enable */
 
 	/* Full key-scan functionality */
-	max7359_write_reg(client, MAX7359_REG_DEBOUNCE, 0x1F);
+	max7359_write_reg(client, MAX7359_REG_DEBOUNCE, 0x1);
 
 	/* nINT asserts every debounce cycles */
 	max7359_write_reg(client, MAX7359_REG_INTERRUPT, 0x01);
+	max7359_write_reg(client, MAX7359_REG_KEYREP, 0x8D); 
 
 	max7359_fall_deepsleep(client);
 }
@@ -187,7 +210,9 @@ static int __devinit max7359_probe(struct i2c_client *client,
 	struct input_dev *input_dev;
 	int ret;
 	int error;
-
+	int i;
+	
+	printk(KERN_INFO "%s: begin\n", __func__);
 	if (!client->irq) {
 		dev_err(&client->dev, "The irq number should not be zero\n");
 		return -EINVAL;
@@ -201,6 +226,15 @@ static int __devinit max7359_probe(struct i2c_client *client,
 	}
 
 	dev_dbg(&client->dev, "keys FIFO is 0x%02x\n", ret);
+
+	for (i = 0; i < MAX7359_MAX_FIFOLEN && (ret & MAX7359_KEYFIFO_FIFO_NOT_EMPTY); ++i) {
+		ret = max7359_read_reg(client, MAX7359_REG_KEYFIFO);
+		printk(KERN_INFO "%s: ret %X\n", __func__, ret);
+		if (ret < 0) {
+			dev_err(&client->dev, "failed to detect device\n");
+			return -ENODEV;
+		}
+	}
 
 	keypad = kzalloc(sizeof(struct max7359_keypad), GFP_KERNEL);
 	input_dev = input_allocate_device();
@@ -224,7 +258,7 @@ static int __devinit max7359_probe(struct i2c_client *client,
 	input_dev->keycodemax = ARRAY_SIZE(keypad->keycodes);
 	input_dev->keycode = keypad->keycodes;
 
-	input_set_capability(input_dev, EV_MSC, MSC_SCAN);
+//	input_set_capability(input_dev, EV_MSC, MSC_SCAN);
 	input_set_drvdata(input_dev, keypad);
 
 	max7359_build_keycode(keypad, keymap_data);
