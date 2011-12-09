@@ -210,6 +210,15 @@ static void __init omap3_check_features(void)
 	 * TODO: Get additional info (where applicable)
 	 *       e.g. Size of L2 cache.
 	 */
+
+	/*
+	 * Does it support 720MHz?
+	 */
+	status = (OMAP3_SKUID_MASK & read_tap_reg(OMAP3_PRODID));
+
+	if (status & OMAP3_SKUID_720MHZ) {
+		omap3_features |= OMAP3_HAS_720MHZ;
+	}
 }
 
 static void __init ti816x_check_features(void)
@@ -490,6 +499,7 @@ static void __init omap3_cpuinfo(void)
 	OMAP3_SHOW_FEATURE(neon);
 	OMAP3_SHOW_FEATURE(isp);
 	OMAP3_SHOW_FEATURE(192mhz_clk);
+	OMAP3_SHOW_FEATURE(720mhz);
 
 	printk(")\n");
 }
@@ -556,4 +566,43 @@ void __init omap2_set_globals_tap(struct omap_globals *omap2_globals)
 		tap_prod_id = 0x0210;
 	else
 		tap_prod_id = 0x0208;
+}
+
+/*
+ * this uses the unique per-cpu info from the cpu fuses set at factory to
+ * generate a 6-byte MAC address.  Two bits in the generated code are used
+ * to elaborate the generated address into four, so it can be used on multiple
+ * network interfaces.
+ */
+
+void omap2_die_id_to_ethernet_mac(u8 *mac, int subtype)
+{
+	struct omap_die_id odi;
+	u32 tap = read_tap_reg(OMAP_TAP_IDCODE);
+
+	omap_get_die_id(&odi);
+
+	mac[0] = odi.id_2;
+	mac[1] = odi.id_2 >> 8;
+	mac[2] = odi.id_1;
+	mac[3] = odi.id_1 >> 8;
+	mac[4] = odi.id_1 >> 16;
+	mac[5] = odi.id_1 >> 24;
+
+	/* XOR other chip-specific data with ID */
+
+	tap ^= odi.id_3;
+
+	mac[0] ^= tap;
+	mac[1] ^= tap >> 8;
+	mac[2] ^= tap >> 16;
+	mac[3] ^= tap >> 24;
+
+	/* allow four MACs from this same basic data */
+
+	mac[1] = (mac[1] & ~0xc0) | ((subtype & 3) << 6);
+
+	/* mark it as not multicast and outside official 80211 MAC namespace */
+
+	mac[0] = (mac[0] & ~1) | 2;
 }

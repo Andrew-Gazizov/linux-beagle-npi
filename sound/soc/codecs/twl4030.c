@@ -54,9 +54,9 @@ static const u8 twl4030_reg[TWL4030_CACHEREGNUM] = {
 	0x00, /* REG_CODEC_MODE		(0x1)	*/
 	0x00, /* REG_OPTION		(0x2)	*/
 	0x00, /* REG_UNKNOWN		(0x3)	*/
-	0x00, /* REG_MICBIAS_CTL	(0x4)	*/
-	0x00, /* REG_ANAMICL		(0x5)	*/
-	0x00, /* REG_ANAMICR		(0x6)	*/
+	0x03, /* REG_MICBIAS_CTL	(0x4)	*/
+	0x34, /* REG_ANAMICL		(0x5)	*/
+	0x14, /* REG_ANAMICR		(0x6)	*/
 	0x00, /* REG_AVADC_CTL		(0x7)	*/
 	0x00, /* REG_ADCMICSEL		(0x8)	*/
 	0x00, /* REG_DIGMIXING		(0x9)	*/

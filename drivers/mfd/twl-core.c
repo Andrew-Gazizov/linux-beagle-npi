@@ -83,6 +83,13 @@
 #define twl_has_madc()	false
 #endif
 
+#if defined(CONFIG_SENSORS_TWL4030_MADC) ||\
+	 defined(CONFIG_SENSORS_TWL4030_MADC_MODULE)
+#define twl_has_madc_hwmon()  true
+#else
+#define twl_has_madc_hwmon()  false
+#endif
+
 #ifdef CONFIG_TWL4030_POWER
 #define twl_has_power()        true
 #else
@@ -109,7 +116,7 @@
 #define twl_has_watchdog()        false
 #endif
 
-#if defined(CONFIG_MFD_TWL4030_AUDIO) || defined(CONFIG_MFD_TWL4030_AUDIO_MODULE) ||\
+#if defined(CONFIG_TWL4030_CODEC) || defined(CONFIG_TWL4030_CODEC_MODULE) ||\
 	defined(CONFIG_SND_SOC_TWL6040) || defined(CONFIG_SND_SOC_TWL6040_MODULE)
 #define twl_has_codec()	true
 #else
@@ -210,6 +217,11 @@
 
 /* Few power values */
 #define R_CFG_BOOT			0x05
+#define R_GPBR1				0x0C
+
+/* MADC clock values for R_GPBR1 */
+#define MADC_HFCLK_EN			0x80
+#define DEFAULT_MADC_CLK_EN		0x10
 
 /* some fields in R_CFG_BOOT */
 #define HFCLK_FREQ_19p2_MHZ		(1 << 0)
@@ -664,6 +676,14 @@ add_children(struct twl4030_platform_data *pdata, unsigned long features)
 	if (twl_has_madc() && pdata->madc) {
 		child = add_child(2, "twl4030_madc",
 				pdata->madc, sizeof(*pdata->madc),
+				true, pdata->irq_base + MADC_INTR_OFFSET, 0);
+		if (IS_ERR(child))
+			return PTR_ERR(child);
+	}
+
+if (twl_has_madc_hwmon()) {
+		child = add_child(2, "twl4030_madc_hwmon",
+				NULL, 0,
 				true, pdata->irq_base + MADC_INTR_OFFSET, 0);
 		if (IS_ERR(child))
 			return PTR_ERR(child);
@@ -1137,6 +1157,9 @@ static void clocks_init(struct device *dev,
 
 	e |= unprotect_pm_master();
 	/* effect->MADC+USB ck en */
+	if (twl_has_madc())
+		e |= twl_i2c_write_u8(TWL_MODULE_INTBR,
+				MADC_HFCLK_EN | DEFAULT_MADC_CLK_EN, R_GPBR1);
 	e |= twl_i2c_write_u8(TWL_MODULE_PM_MASTER, ctrl, R_CFG_BOOT);
 	e |= protect_pm_master();
 

@@ -106,8 +106,9 @@ static void omap2_init_processor_devices(void)
 int omap_set_pwrdm_state(struct powerdomain *pwrdm, u32 state)
 {
 	u32 cur_state;
-	int sleep_switch = 0;
+	int sleep_switch = -1;
 	int ret = 0;
+	int hwsup = 0;
 
 	if (pwrdm == NULL || IS_ERR(pwrdm))
 		return -EINVAL;
@@ -127,6 +128,7 @@ int omap_set_pwrdm_state(struct powerdomain *pwrdm, u32 state)
 			(pwrdm->flags & PWRDM_HAS_LOWPOWERSTATECHANGE)) {
 			sleep_switch = LOWPOWERSTATE_SWITCH;
 		} else {
+			hwsup = clkdm_in_hwsup(pwrdm->pwrdm_clkdms[0]);
 			clkdm_wakeup(pwrdm->pwrdm_clkdms[0]);
 			pwrdm_wait_transition(pwrdm);
 			sleep_switch = FORCEWAKEUP_SWITCH;
@@ -142,7 +144,7 @@ int omap_set_pwrdm_state(struct powerdomain *pwrdm, u32 state)
 
 	switch (sleep_switch) {
 	case FORCEWAKEUP_SWITCH:
-		if (pwrdm->pwrdm_clkdms[0]->flags & CLKDM_CAN_ENABLE_AUTO)
+		if (hwsup)
 			clkdm_allow_idle(pwrdm->pwrdm_clkdms[0]);
 		else
 			clkdm_sleep(pwrdm->pwrdm_clkdms[0]);
@@ -181,7 +183,7 @@ static int __init omap2_set_init_voltage(char *vdd_name, char *clk_name,
 		goto exit;
 	}
 
-	voltdm = omap_voltage_domain_lookup(vdd_name);
+	voltdm = voltdm_lookup(vdd_name);
 	if (IS_ERR(voltdm)) {
 		printk(KERN_ERR "%s: Unable to get vdd pointer for vdd_%s\n",
 			__func__, vdd_name);
@@ -212,7 +214,7 @@ static int __init omap2_set_init_voltage(char *vdd_name, char *clk_name,
 		goto exit;
 	}
 
-	omap_voltage_scale_vdd(voltdm, bootup_volt);
+	voltdm_scale(voltdm, bootup_volt);
 	return 0;
 
 exit:
@@ -226,7 +228,7 @@ static void __init omap3_init_voltages(void)
 	if (!cpu_is_omap34xx())
 		return;
 
-	omap2_set_init_voltage("mpu", "dpll1_ck", mpu_dev);
+	omap2_set_init_voltage("mpu_iva", "dpll1_ck", mpu_dev);
 	omap2_set_init_voltage("core", "l3_ick", l3_dev);
 }
 

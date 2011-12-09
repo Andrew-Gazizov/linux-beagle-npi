@@ -3,7 +3,7 @@
 #
 
 # Common support
-obj-y := id.o io.o control.o mux.o devices.o serial.o gpmc.o timer-gp.o pm.o \
+obj-y := id.o io.o control.o mux.o devices.o serial.o gpmc.o timer.o pm.o \
 	 common.o gpio.o dma.o wd_timer.o
 
 omap-2-3-common				= irq.o sdrc.o
@@ -56,6 +56,9 @@ obj-$(CONFIG_ARCH_OMAP3)		+= opp3xxx_data.o
 obj-$(CONFIG_ARCH_OMAP4)		+= opp4xxx_data.o
 endif
 
+# CPUFREQ driver
+obj-$(CONFIG_CPU_FREQ)			+= omap2plus-cpufreq.o
+
 # Power Management
 ifeq ($(CONFIG_PM),y)
 obj-$(CONFIG_ARCH_OMAP2)		+= pm24xx.o
@@ -90,8 +93,9 @@ obj-$(CONFIG_ARCH_OMAP4)		+= prcm.o cm2xxx_3xxx.o cminst44xx.o \
 
 # OMAP voltage domains
 ifeq ($(CONFIG_PM),y)
-voltagedomain-common			:= voltage.o
-obj-$(CONFIG_ARCH_OMAP2)		+= $(voltagedomain-common)
+voltagedomain-common			:= voltage.o vc.o vp.o
+obj-$(CONFIG_ARCH_OMAP2)		+= $(voltagedomain-common) \
+					   voltagedomains2xxx_data.o
 obj-$(CONFIG_ARCH_OMAP3)		+= $(voltagedomain-common) \
 					   voltagedomains3xxx_data.o
 obj-$(CONFIG_ARCH_OMAP4)		+= $(voltagedomain-common) \
@@ -145,9 +149,19 @@ obj-$(CONFIG_SOC_OMAP2420)		+= opp2420_data.o
 obj-$(CONFIG_SOC_OMAP2430)		+= opp2430_data.o
 
 # hwmod data
-obj-$(CONFIG_SOC_OMAP2420)		+= omap_hwmod_2420_data.o
-obj-$(CONFIG_SOC_OMAP2430)		+= omap_hwmod_2430_data.o
-obj-$(CONFIG_ARCH_OMAP3)		+= omap_hwmod_3xxx_data.o
+obj-$(CONFIG_SOC_OMAP2420)		+= omap_hwmod_2xxx_ipblock_data.o \
+					   omap_hwmod_2xxx_3xxx_ipblock_data.o \
+					   omap_hwmod_2xxx_interconnect_data.o \
+					   omap_hwmod_2xxx_3xxx_interconnect_data.o \
+					   omap_hwmod_2420_data.o
+obj-$(CONFIG_SOC_OMAP2430)		+= omap_hwmod_2xxx_ipblock_data.o \
+					   omap_hwmod_2xxx_3xxx_ipblock_data.o \
+					   omap_hwmod_2xxx_interconnect_data.o \
+					   omap_hwmod_2xxx_3xxx_interconnect_data.o \
+					   omap_hwmod_2430_data.o
+obj-$(CONFIG_ARCH_OMAP3)		+= omap_hwmod_2xxx_3xxx_ipblock_data.o \
+					   omap_hwmod_2xxx_3xxx_interconnect_data.o \
+					   omap_hwmod_3xxx_data.o
 obj-$(CONFIG_ARCH_OMAP4)		+= omap_hwmod_44xx_data.o
 
 # EMU peripherals
@@ -269,4 +283,4 @@ obj-$(CONFIG_ARCH_OMAP4)		+= hwspinlock.o
 disp-$(CONFIG_OMAP2_DSS)		:= display.o
 obj-y					+= $(disp-m) $(disp-y)
 
-obj-y					+= common-board-devices.o
+obj-y					+= common-board-devices.o twl-common.o

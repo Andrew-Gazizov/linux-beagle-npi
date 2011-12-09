@@ -30,7 +30,24 @@
 
 #include <linux/i2c/twl.h>
 
+/*
+ * PM_RECEIVER block register offsets (use TWL4030_MODULE_PM_RECEIVER)
+ */
+#define REG_BB_CFG	0x12
 
+/* PM_RECEIVER  BB_CFG bitfields */
+#define BIT_PM_RECEIVER_BB_CFG_BBCHEN           0x10
+#define BIT_PM_RECEIVER_BB_CFG_BBSEL            0x0C
+#define BIT_PM_RECEIVER_BB_CFG_BBSEL_2V5        0x00
+#define BIT_PM_RECEIVER_BB_CFG_BBSEL_3V0        0x04
+#define BIT_PM_RECEIVER_BB_CFG_BBSEL_3V1        0x08
+#define BIT_PM_RECEIVER_BB_CFG_BBSEL_3v2        0x0c
+#define BIT_PM_RECEIVER_BB_CFG_BBISEL           0x03
+#define BIT_PM_RECEIVER_BB_CFG_BBISEL_25UA      0x00
+#define BIT_PM_RECEIVER_BB_CFG_BBISEL_150UA     0x01
+#define BIT_PM_RECEIVER_BB_CFG_BBISEL_500UA     0x02
+#define BIT_PM_RECEIVER_BB_CFG_BBISEL_1MA       0x03
+ 
 /*
  * RTC block register offsets (use TWL_MODULE_RTC)
  */
@@ -362,14 +379,6 @@ static irqreturn_t twl_rtc_interrupt(int irq, void *rtc)
 	int res;
 	u8 rd_reg;
 
-#ifdef CONFIG_LOCKDEP
-	/* WORKAROUND for lockdep forcing IRQF_DISABLED on us, which
-	 * we don't want and can't tolerate.  Although it might be
-	 * friendlier not to borrow this thread context...
-	 */
-	local_irq_enable();
-#endif
-
 	res = twl_rtc_read_u8(&rd_reg, REG_RTC_STATUS_REG);
 	if (res)
 		goto out;
@@ -428,24 +437,12 @@ static struct rtc_class_ops twl_rtc_ops = {
 static int __devinit twl_rtc_probe(struct platform_device *pdev)
 {
 	struct rtc_device *rtc;
-	int ret = 0;
+	int ret = -EINVAL;
 	int irq = platform_get_irq(pdev, 0);
 	u8 rd_reg;
 
 	if (irq <= 0)
-		return -EINVAL;
-
-	rtc = rtc_device_register(pdev->name,
-				  &pdev->dev, &twl_rtc_ops, THIS_MODULE);
-	if (IS_ERR(rtc)) {
-		ret = PTR_ERR(rtc);
-		dev_err(&pdev->dev, "can't register RTC device, err %ld\n",
-			PTR_ERR(rtc));
-		goto out0;
-
-	}
-
-	platform_set_drvdata(pdev, rtc);
+		goto out1;
 
 	ret = twl_rtc_read_u8(&rd_reg, REG_RTC_STATUS_REG);
 	if (ret < 0)
@@ -462,14 +459,6 @@ static int __devinit twl_rtc_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto out1;
 
-	ret = request_irq(irq, twl_rtc_interrupt,
-				IRQF_TRIGGER_RISING,
-				dev_name(&rtc->dev), rtc);
-	if (ret < 0) {
-		dev_err(&pdev->dev, "IRQ is not free.\n");
-		goto out1;
-	}
-
 	if (twl_class_is_6030()) {
 		twl6030_interrupt_unmask(TWL6030_RTC_INT_MASK,
 			REG_INT_MSK_LINE_A);
@@ -480,28 +469,52 @@ static int __devinit twl_rtc_probe(struct platform_device *pdev)
 	/* Check RTC module status, Enable if it is off */
 	ret = twl_rtc_read_u8(&rd_reg, REG_RTC_CTRL_REG);
 	if (ret < 0)
-		goto out2;
+		goto out1;
 
 	if (!(rd_reg & BIT_RTC_CTRL_REG_STOP_RTC_M)) {
 		dev_info(&pdev->dev, "Enabling TWL-RTC.\n");
 		rd_reg = BIT_RTC_CTRL_REG_STOP_RTC_M;
 		ret = twl_rtc_write_u8(rd_reg, REG_RTC_CTRL_REG);
 		if (ret < 0)
-			goto out2;
+			goto out1;
 	}
 
 	/* init cached IRQ enable bits */
 	ret = twl_rtc_read_u8(&rtc_irq_bits, REG_RTC_INTERRUPTS_REG);
 	if (ret < 0)
-		goto out2;
+		goto out1;
 
-	return ret;
+	rtc = rtc_device_register(pdev->name,
+				  &pdev->dev, &twl_rtc_ops, THIS_MODULE);
+	if (IS_ERR(rtc)) {
+		ret = PTR_ERR(rtc);
+		dev_err(&pdev->dev, "can't register RTC device, err %ld\n",
+			PTR_ERR(rtc));
+		goto out1;
+	}
+
+	ret = request_threaded_irq(irq, NULL, twl_rtc_interrupt,
+				   IRQF_TRIGGER_RISING,
+				   dev_name(&rtc->dev), rtc);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "IRQ is not free.\n");
+		goto out2;
+	}
+
+	/* enable backup battery charging */
+	/* use a conservative 25uA @ 3.1V */
+	ret = twl_i2c_write_u8(TWL4030_MODULE_PM_RECEIVER,
+		BIT_PM_RECEIVER_BB_CFG_BBCHEN |
+		BIT_PM_RECEIVER_BB_CFG_BBSEL_3V1 |
+		BIT_PM_RECEIVER_BB_CFG_BBISEL_25UA,
+		REG_BB_CFG);
+
+	platform_set_drvdata(pdev, rtc);
+	return 0;
 
 out2:
-	free_irq(irq, rtc);
-out1:
 	rtc_device_unregister(rtc);
-out0:
+out1:
 	return ret;
 }
 
