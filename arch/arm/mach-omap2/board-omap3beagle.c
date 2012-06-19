@@ -36,6 +36,7 @@
 #include <linux/netdevice.h>
 #include <linux/if_ether.h>
 #include <linux/i2c/tsc2007.h>
+#include <linux/spi/spi.h>
 #include <linux/spi/max1233.h>
 
 #include <mach/hardware.h>
@@ -450,7 +451,7 @@ static void __init pl_init_spi(void)
 	if (gpio_request(MAX1233_GPIO_IRQ, "MAX1233_GPIO_IRQ") == 0 &&
 	    gpio_direction_input(MAX1233_GPIO_IRQ) == 0) {
 		pl_spi_board_info[1].irq = OMAP_GPIO_IRQ(MAX1233_GPIO_IRQ);
-		set_irq_type(pl_spi_board_info[1].irq, IRQ_TYPE_EDGE_FALLING);
+		irq_set_irq_type(pl_spi_board_info[1].irq, IRQ_TYPE_EDGE_FALLING);
 	} else
 		pl_spi_board_info[1].irq = 0;
 
@@ -860,7 +861,7 @@ static int __init omap3_beagle_i2c_init(void)
 	    (gpio_direction_input(OMAP3BEAGLE_GPIO_MAX7359_IRQ) == 0)) {
 		gpio_export(OMAP3BEAGLE_GPIO_MAX7359_IRQ, 1);
 		pl_i2c_devices_boardinfo[0].irq	= OMAP_GPIO_IRQ(OMAP3BEAGLE_GPIO_MAX7359_IRQ);
-		set_irq_type(pl_i2c_devices_boardinfo[0].irq, /*IRQ_TYPE_LEVEL_LOW*/IRQ_TYPE_EDGE_FALLING);
+		irq_set_irq_type(pl_i2c_devices_boardinfo[0].irq, /*IRQ_TYPE_LEVEL_LOW*/IRQ_TYPE_EDGE_FALLING);
 	} else {
 		printk(KERN_ERR "could not obtain gpio for MAX7359_IRQ\n");
 		return -1;
