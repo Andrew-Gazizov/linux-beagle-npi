@@ -1047,6 +1047,24 @@ static void omap3_pl_poweroff(void)
 	gpio_set_value(POWEROFF_GPIO, 0);
 }
 
+static void __init zkpk_init(void)
+{
+	static const int mygpio[] = {
+#if 0
+		98, 111, 162, 109, 15, 104, 106, 96, 103, 145, 97, 197,
+		108, 105, 136, 130, 139, 132, 133, 131, 101, 156, 95, 129, 137, 135, 134
+#else
+		145, 97
+#endif
+	};
+	int i;
+
+	for (i = 0; i < sizeof(mygpio) / sizeof(mygpio[0]); ++i) {
+		gpio_request(mygpio[i], "sysfs");
+		gpio_export(mygpio[i], 1);
+	}
+}
+
 static void __init omap3_beagle_init(void)
 {
 	pm_power_off = omap3_pl_poweroff;
@@ -1153,6 +1171,8 @@ static void __init omap3_beagle_init(void)
 	}
 
 	pl_init_spi();
+
+	zkpk_init();
 
 	usb_musb_init(NULL);
 	usbhs_init(&usbhs_bdata);
