@@ -198,6 +198,7 @@ static void max7359_initialize(struct i2c_client *client)
 	/* nINT asserts every debounce cycles */
 	max7359_write_reg(client, MAX7359_REG_INTERRUPT, 0x01);
 	max7359_write_reg(client, MAX7359_REG_KEYREP, 0x8D); 
+	max7359_write_reg(client, MAX7359_REG_PORTS, 0xFF); /// set ports
 
 	max7359_fall_deepsleep(client);
 }
