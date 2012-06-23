@@ -224,8 +224,9 @@ static void ads7846_restart(struct ads7846 *ts)
 static void __ads7846_disable(struct ads7846 *ts)
 {
 	ads7846_stop(ts);
+#ifdef MY_REG
 	regulator_disable(ts->reg);
-
+#endif
 	/*
 	 * We know the chip's in low power mode since we always
 	 * leave it that way after every request
@@ -235,7 +236,9 @@ static void __ads7846_disable(struct ads7846 *ts)
 /* Must be called with ts->lock held */
 static void __ads7846_enable(struct ads7846 *ts)
 {
+#ifdef MY_REG
 	regulator_enable(ts->reg);
+#endif
 	ads7846_restart(ts);
 }
 
@@ -463,6 +466,11 @@ static inline unsigned vbatt_adjust(struct ads7846 *ts, ssize_t v)
 	/* ads7846 has a resistor ladder to scale this signal down */
 	if (ts->model == 7846)
 		retval *= 4;
+	else if (ts->model == 7845) {// K=125/100 - коэффициент делителя Марка Епифанова
+		retval += retval << 2; /// (*5)
+		retval >>= 2; /// (/4)
+	}
+
 
 	return retval;
 }
@@ -493,7 +501,7 @@ static struct attribute_group ads7843_attr_group = {
 };
 
 static struct attribute *ads7845_attributes[] = {
-	&dev_attr_in0_input.attr,
+	&dev_attr_in1_input.attr,
 	NULL,
 };
 
@@ -699,7 +707,8 @@ static int ads7846_get_value(struct ads7846 *ts, struct spi_message *m)
 		 * adjust:  on-wire is a must-ignore bit, a BE12 value, then
 		 * padding; built from two 8 bit values written msb-first.
 		 */
-		return be16_to_cpup((__be16 *)t->rx_buf) >> 3;
+		return (be16_to_cpup((__be16 *)t->rx_buf) & 0x7FFF) >> 3;
+//		return be16_to_cpup((__be16 *)t->rx_buf) >> 3;
 	}
 }
 
@@ -855,7 +864,8 @@ static void ads7846_report_state(struct ads7846 *ts)
 		}
 
 		input_report_abs(input, ABS_X, x);
-		input_report_abs(input, ABS_Y, y);
+		input_report_abs(input, ABS_Y, 0xFF - y);
+//		input_report_abs(input, ABS_Y, y);
 		input_report_abs(input, ABS_PRESSURE, ts->pressure_max - Rt);
 
 		input_sync(input);
@@ -1305,7 +1315,7 @@ static int __devinit ads7846_probe(struct spi_device *spi)
 			pdata->pressure_min, pdata->pressure_max, 0, 0);
 
 	ads7846_setup_spi_msg(ts, pdata);
-
+#ifdef MY_REG
 	ts->reg = regulator_get(&spi->dev, "vcc");
 	if (IS_ERR(ts->reg)) {
 		err = PTR_ERR(ts->reg);
@@ -1318,7 +1328,7 @@ static int __devinit ads7846_probe(struct spi_device *spi)
 		dev_err(&spi->dev, "unable to enable regulator: %d\n", err);
 		goto err_put_regulator;
 	}
-
+#endif
 	irq_flags = pdata->irq_flags ? : IRQF_TRIGGER_FALLING;
 	irq_flags |= IRQF_ONESHOT;
 
@@ -1379,9 +1389,13 @@ static int __devinit ads7846_probe(struct spi_device *spi)
  err_free_irq:
 	free_irq(spi->irq, ts);
  err_disable_regulator:
+#ifdef MY_REG
 	regulator_disable(ts->reg);
+#endif
  err_put_regulator:
+#ifdef MY_REG
 	regulator_put(ts->reg);
+#endif
  err_free_gpio:
 	if (!ts->get_pendown_state && ts->gpio_pendown != -1)
 		gpio_free(ts->gpio_pendown);
@@ -1409,10 +1423,10 @@ static int __devexit ads7846_remove(struct spi_device *spi)
 	input_unregister_device(ts->input);
 
 	ads784x_hwmon_unregister(spi, ts);
-
+#ifdef MY_REG
 	regulator_disable(ts->reg);
 	regulator_put(ts->reg);
-
+#endif
 	if (!ts->get_pendown_state) {
 		/*
 		 * If we are not using specialized pendown method we must
