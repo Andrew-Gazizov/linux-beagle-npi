@@ -48,4 +48,12 @@ config PANEL_ACX565AKM
 	select BACKLIGHT_CLASS_DEVICE
 	help
 	  This is the LCD panel used on Nokia N900
+
+config PANEL_NL6448
+        tristate "NL6448BC18-03F LCD Panel"
+        depends on OMAP2_DSS
+        help
+          LCD 5.7 Panel used with Zkpk2 devices
+
+
 endmenu

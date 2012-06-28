@@ -20,6 +20,7 @@
 #include <linux/pm.h>
 #include <linux/input.h>
 #include <linux/input/matrix_keypad.h>
+#include <linux/input/max7359.h>
 
 #define MAX7359_MAX_KEY_ROWS	8
 #define MAX7359_MAX_KEY_COLS	8
@@ -37,8 +38,6 @@
 #define MAX7359_REG_KEYREP	0x05
 #define MAX7359_REG_SLEEP	0x06
 
-#define MAX7359_KEYFIFO_FIFO_NOT_EMPTY (1 << 7)
-#define MAX7359_MAX_FIFOLEN 1000
 /*
  * Configuration register bits
  */
@@ -58,6 +57,12 @@
 #define MAX7359_AUTOSLEEP_512	0x05
 #define MAX7359_AUTOSLEEP_256	0x06
 
+static unsigned char port_gpo = 0xFF;
+static DEFINE_MUTEX(port_gpo_mutex);
+static int verbose_level = 0;
+module_param(verbose_level, int, 0644);
+
+
 struct max7359_keypad {
 	/* matrix key code map */
 	unsigned short keycodes[MAX7359_MAX_KEY_NUM];
@@ -65,9 +70,6 @@ struct max7359_keypad {
 	struct input_dev *input_dev;
 	struct i2c_client *client;
 };
-
-static int verbose_level = 0;
-module_param(verbose_level, int, 0644);
 
 static int max7359_write_reg(struct i2c_client *client, u8 reg, u8 val)
 {
@@ -94,7 +96,7 @@ static void max7359_build_keycode(struct max7359_keypad *keypad,
 {
 	struct input_dev *input_dev = keypad->input_dev;
 	int i;
-
+	
 	for (i = 0; i < keymap_data->keymap_size; i++) {
 		unsigned int key = keymap_data->keymap[i];
 		unsigned int row = KEY_ROW(key);
@@ -115,10 +117,11 @@ static irqreturn_t max7359_interrupt(int irq, void *dev_id)
 	struct max7359_keypad *keypad = dev_id;
 	struct input_dev *input_dev = keypad->input_dev;
 	int val, row, col, release, code;
-	static int last_code = -1;
-
-	do {
-		val = max7359_read_reg(keypad->client, MAX7359_REG_KEYFIFO);
+	
+	    val = max7359_read_reg(keypad->client, MAX7359_REG_KEYFIFO);
+	
+	    if (val >= 0)
+	    {
 		row = val & 0x7;
 		col = (val >> 3) & 0x7;
 		release = val & 0x40;
@@ -126,26 +129,14 @@ static irqreturn_t max7359_interrupt(int irq, void *dev_id)
 		code = MATRIX_SCAN_CODE(row, col, MAX7359_ROW_SHIFT);
 
 		dev_dbg(&keypad->client->dev,
-			"key[%d:%d] %s\n", row, col, release ? "release" : "press");
+			    "key[%d:%d] %s\n", row, col, release ? "release" : "press");
 		if (verbose_level > 0)
 			printk(KERN_INFO "%s: key[%d:%d] %s, code %d\n", __func__, row, col, release ? "release" : "press", code);
-
-//		input_event(input_dev, EV_MSC, MSC_SCAN, code);
-
-		if (!release && row == 6 && col == 7 && last_code != -1) {//autorepeat
-			input_report_key(input_dev, keypad->keycodes[last_code], 0);
-			input_sync(input_dev);
-			input_report_key(input_dev, keypad->keycodes[last_code], 1);
-		} else {
-			input_report_key(input_dev, keypad->keycodes[code], !release);
-			if (!release)
-				last_code = code;
-			else
-				last_code = -1;
-		}
-
+			    
+		input_event(input_dev, EV_MSC, MSC_SCAN, code);
+		input_report_key(input_dev, keypad->keycodes[code], !release);
 		input_sync(input_dev);
-	} while (val & MAX7359_KEYFIFO_FIFO_NOT_EMPTY);
+	    }
 
 	return IRQ_HANDLED;
 }
@@ -187,38 +178,69 @@ static void max7359_close(struct input_dev *dev)
 
 static void max7359_initialize(struct i2c_client *client)
 {
-	max7359_write_reg(client, MAX7359_REG_CONFIG,
-//		MAX7359_CFG_INTERRUPT | /* Irq clears after host read */
+	int ret;
+
+	ret = max7359_write_reg(client, MAX7359_REG_CONFIG,
+		/// MAX7359_CFG_INTERRUPT | /* Irq clears after host read */
 		MAX7359_CFG_KEY_RELEASE | /* Key release enable */
 		MAX7359_CFG_WAKEUP); /* Key press wakeup enable */
-
+		
 	/* Full key-scan functionality */
-	max7359_write_reg(client, MAX7359_REG_DEBOUNCE, 0x1);
-
+	ret = max7359_write_reg(client, MAX7359_REG_DEBOUNCE, 0x7F); /// debounce 40ms and GPO PORTS 5,6,7 enabled
+	
 	/* nINT asserts every debounce cycles */
-	max7359_write_reg(client, MAX7359_REG_INTERRUPT, 0x01);
-	max7359_write_reg(client, MAX7359_REG_KEYREP, 0x8D); 
-	max7359_write_reg(client, MAX7359_REG_PORTS, 0xFF); /// set ports
-
+	ret = max7359_write_reg(client, MAX7359_REG_INTERRUPT, 0x01);
+	
+	ret = max7359_write_reg(client, MAX7359_REG_PORTS, port_gpo); /// set ports
+	
 	max7359_fall_deepsleep(client);
 }
+
+static ssize_t max7359_port_gpo_show(struct device *dev,
+				   struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", port_gpo);
+}
+
+static ssize_t max7359_port_gpo_store(struct device *dev, struct device_attribute *attr,
+				    const char *buf, size_t count)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	int state;
+
+	if (sscanf(buf, "%u", &state) != 1)
+		return -EINVAL;
+	
+	mutex_lock(&port_gpo_mutex);
+	if (state != port_gpo)
+	{
+	    if (max7359_write_reg(client, MAX7359_REG_PORTS, state) >= 0 )
+	    {
+		port_gpo = state;
+	    }
+	}
+	mutex_unlock(&port_gpo_mutex);
+
+	return strnlen(buf, count);
+}
+
+static DEVICE_ATTR(portgpo, S_IRUGO | S_IWUSR, max7359_port_gpo_show, max7359_port_gpo_store);
 
 static int __devinit max7359_probe(struct i2c_client *client,
 					const struct i2c_device_id *id)
 {
-	const struct matrix_keymap_data *keymap_data = client->dev.platform_data;
+	struct max7359_platform_data *pdata = client->dev.platform_data;
+	const struct matrix_keymap_data *keymap_data = pdata->keymap_data;
 	struct max7359_keypad *keypad;
 	struct input_dev *input_dev;
 	int ret;
 	int error;
-	int i;
 	
-	printk(KERN_INFO "%s: begin\n", __func__);
 	if (!client->irq) {
 		dev_err(&client->dev, "The irq number should not be zero\n");
 		return -EINVAL;
 	}
-
+	
 	/* Detect MAX7359: The initial Keys FIFO value is '0x3F' */
 	ret = max7359_read_reg(client, MAX7359_REG_KEYFIFO);
 	if (ret < 0) {
@@ -228,25 +250,23 @@ static int __devinit max7359_probe(struct i2c_client *client,
 
 	dev_dbg(&client->dev, "keys FIFO is 0x%02x\n", ret);
 
-	for (i = 0; i < MAX7359_MAX_FIFOLEN && (ret & MAX7359_KEYFIFO_FIFO_NOT_EMPTY); ++i) {
-		ret = max7359_read_reg(client, MAX7359_REG_KEYFIFO);
-		printk(KERN_INFO "%s: ret %X\n", __func__, ret);
-		if (ret < 0) {
-			dev_err(&client->dev, "failed to detect device\n");
-			return -ENODEV;
-		}
-	}
-
 	keypad = kzalloc(sizeof(struct max7359_keypad), GFP_KERNEL);
 	input_dev = input_allocate_device();
 	if (!keypad || !input_dev) {
 		dev_err(&client->dev, "failed to allocate memory\n");
-		error = -ENOMEM;
+		error = -ENODEV;
 		goto failed_free_mem;
 	}
 
 	keypad->client = client;
 	keypad->input_dev = input_dev;
+	
+	ret = device_create_file(&client->dev, &dev_attr_portgpo);
+	if (ret < 0)
+	{
+		error = -ENOMEM;
+		goto failed_free_mem;
+	}
 
 	input_dev->name = client->name;
 	input_dev->id.bustype = BUS_I2C;
@@ -259,17 +279,22 @@ static int __devinit max7359_probe(struct i2c_client *client,
 	input_dev->keycodemax = ARRAY_SIZE(keypad->keycodes);
 	input_dev->keycode = keypad->keycodes;
 
-//	input_set_capability(input_dev, EV_MSC, MSC_SCAN);
+	input_set_capability(input_dev, EV_MSC, MSC_SCAN);
 	input_set_drvdata(input_dev, keypad);
 
 	max7359_build_keycode(keypad, keymap_data);
-
+	
+	if (pdata->init_platform_hw) {
+//		printk(KERN_INFO "%s: init platform\n", __func__);
+		pdata->init_platform_hw();
+	}
+		
 	error = request_threaded_irq(client->irq, NULL, max7359_interrupt,
 				     IRQF_TRIGGER_LOW | IRQF_ONESHOT,
 				     client->name, keypad);
 	if (error) {
 		dev_err(&client->dev, "failed to register interrupt\n");
-		goto failed_free_mem;
+		goto failed_create_file;
 	}
 
 	/* Register the input device */
@@ -281,7 +306,7 @@ static int __devinit max7359_probe(struct i2c_client *client,
 
 	/* Initialize MAX7359 */
 	max7359_initialize(client);
-
+	
 	i2c_set_clientdata(client, keypad);
 	device_init_wakeup(&client->dev, 1);
 
@@ -289,6 +314,12 @@ static int __devinit max7359_probe(struct i2c_client *client,
 
 failed_free_irq:
 	free_irq(client->irq, keypad);
+	if (pdata->exit_platform_hw)
+		pdata->exit_platform_hw();
+		
+failed_create_file:
+	device_remove_file(&client->dev, &dev_attr_portgpo);
+		
 failed_free_mem:
 	input_free_device(input_dev);
 	kfree(keypad);
@@ -298,19 +329,25 @@ failed_free_mem:
 static int __devexit max7359_remove(struct i2c_client *client)
 {
 	struct max7359_keypad *keypad = i2c_get_clientdata(client);
+	struct max7359_platform_data *pdata = client->dev.platform_data;
 
 	free_irq(client->irq, keypad);
+	
+	if (pdata->exit_platform_hw)
+		pdata->exit_platform_hw();
+	
 	input_unregister_device(keypad->input_dev);
+	device_remove_file(&client->dev, &dev_attr_portgpo);
+	i2c_set_clientdata(client, NULL);
 	kfree(keypad);
 
 	return 0;
 }
 
-#ifdef CONFIG_PM
-static int max7359_suspend(struct device *dev)
-{
-	struct i2c_client *client = to_i2c_client(dev);
 
+#ifdef CONFIG_PM
+static int max7359_suspend(struct i2c_client *client, pm_message_t mesg)
+{
 	max7359_fall_deepsleep(client);
 
 	if (device_may_wakeup(&client->dev))
@@ -319,10 +356,8 @@ static int max7359_suspend(struct device *dev)
 	return 0;
 }
 
-static int max7359_resume(struct device *dev)
+static int max7359_resume(struct i2c_client *client)
 {
-	struct i2c_client *client = to_i2c_client(dev);
-
 	if (device_may_wakeup(&client->dev))
 		disable_irq_wake(client->irq);
 
@@ -331,9 +366,10 @@ static int max7359_resume(struct device *dev)
 
 	return 0;
 }
+#else
+#define max7359_suspend	NULL
+#define max7359_resume	NULL
 #endif
-
-static SIMPLE_DEV_PM_OPS(max7359_pm, max7359_suspend, max7359_resume);
 
 static const struct i2c_device_id max7359_ids[] = {
 	{ "max7359", 0 },
@@ -344,10 +380,11 @@ MODULE_DEVICE_TABLE(i2c, max7359_ids);
 static struct i2c_driver max7359_i2c_driver = {
 	.driver = {
 		.name = "max7359",
-		.pm   = &max7359_pm,
 	},
 	.probe		= max7359_probe,
 	.remove		= __devexit_p(max7359_remove),
+	.suspend	= max7359_suspend,
+	.resume		= max7359_resume,
 	.id_table	= max7359_ids,
 };
 

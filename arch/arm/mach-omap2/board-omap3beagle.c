@@ -37,7 +37,7 @@
 #include <linux/if_ether.h>
 #include <linux/i2c/tsc2007.h>
 #include <linux/spi/spi.h>
-#include <linux/spi/max1233.h>
+#include <linux/input/max7359.h>
 
 #include <mach/hardware.h>
 #include <asm/mach-types.h>
@@ -54,6 +54,8 @@
 #include <plat/nand.h>
 #include <plat/usb.h>
 #include <plat/omap_device.h>
+#include <linux/spi/ads7846.h>
+#include <plat/mcspi.h>
 
 #include "mux.h"
 #include "hsmmc.h"
@@ -81,6 +83,55 @@ enum {
 
 static u8 omap3_beagle_version;
 
+#define BLUESHARK_GPIO_PENDOWN	167
+#define POWEROFF_GPIO 103
+#define	GPIO_MAX7359_IRQ	156
+
+static struct omap2_mcspi_device_config ads7846_mcspi_config = {
+	.turbo_mode	= 0,
+	.single_channel	= 1,	/* 0: slave, 1: master */
+};
+
+static int ads7846_get_pendown_state(void)
+{
+	return !gpio_get_value(BLUESHARK_GPIO_PENDOWN);
+}
+
+
+static struct ads7846_platform_data ads7846_config = {
+	.x_max			= 0x0fff,
+	.y_max			= 0x0fff,
+	.x_plate_ohms		= 550,
+	.y_plate_ohms		= 300,
+	.pressure_max		= 255,
+	.get_pendown_state	= ads7846_get_pendown_state,
+	.keep_vref_on		= 1,
+	.model			= 7845,
+	.vref_mv		= 3300,
+	.penirq_recheck_delay_usecs = 3000,
+	.settle_delay_usecs = 150,
+	.debounce_max		= 10,
+	.debounce_tol		= 3,
+	.debounce_rep		= 2,
+	.swap_xy		= true, /// актуально для ЗКПК и xf86-input-evdev, поскольку xinput-calibrator глючит с перепутанными осями
+};
+
+
+static void __init blueshark_ads7846_init(void)
+{
+	if ((gpio_request(BLUESHARK_GPIO_PENDOWN, "ADS7846_PENDOWN") == 0) &&
+	    (gpio_direction_input(BLUESHARK_GPIO_PENDOWN) == 0)) {
+		gpio_export(BLUESHARK_GPIO_PENDOWN, 0);
+	} else {
+		printk(KERN_ERR "could not obtain gpio for ADS7846_PENDOWN\n");
+		return;
+	}
+
+	/// особых изменений от добавления следующих строк не заметил, но пока оставлю
+	/// поскольку на ЗКПК с прерыванием от тачскрина дела обстоят не очень(шум на осцилле)
+	gpio_set_debounce(BLUESHARK_GPIO_PENDOWN, 0xa);
+}
+
 /*
  * Board-specific configuration
  * Defaults to BeagleBoard-xMC
@@ -98,51 +149,127 @@ static struct {
 	.reset_gpio = 129,
 	.usr_button_gpio = 4,
 	.lcd_driver_name = "",
-	.lcd_pwren = 156
+	.lcd_pwren = 0
 };
+
+
+static int max7359_init_irq(void)
+{
+	int ret = 0;
+
+	ret = gpio_request(GPIO_MAX7359_IRQ, "max7359-irq");
+	if (ret < 0) {
+		printk(KERN_WARNING "failed to request GPIO#%d: %d\n",
+				GPIO_MAX7359_IRQ, ret);
+		return ret;
+	}
+
+	if (gpio_direction_input(GPIO_MAX7359_IRQ)) {
+		printk(KERN_WARNING "GPIO#%d cannot be configured as "
+				"input\n", GPIO_MAX7359_IRQ);
+		return -ENXIO;
+	}
+
+	return ret;
+}
+
+static void max7359_exit_irq(void)
+{
+	gpio_free(GPIO_MAX7359_IRQ);
+}
 
 #define DEFINE_KEY(row, col, keycode) ((row << 24) | (col << 16) | keycode)
 
 static const uint32_t pl_keys[] = {
-	DEFINE_KEY(0, 2, KEY_C),
-	DEFINE_KEY(0, 0, KEY_H),
-	DEFINE_KEY(0, 1, KEY_1),
-	DEFINE_KEY(1, 2, KEY_2),
-	DEFINE_KEY(1, 0, KEY_3),
-	DEFINE_KEY(1, 1, KEY_4),
-	DEFINE_KEY(2, 2, KEY_5),
-	DEFINE_KEY(2, 0, KEY_6),
+	DEFINE_KEY(0, 0, KEY_RESERVED), /// row 0 not used in zkpk2
+	DEFINE_KEY(0, 1, KEY_RESERVED),
+	DEFINE_KEY(0, 2, KEY_RESERVED),
+	DEFINE_KEY(0, 3, KEY_RESERVED),
+	DEFINE_KEY(0, 4, KEY_RESERVED),
+	DEFINE_KEY(0, 5, KEY_RESERVED),
+	DEFINE_KEY(0, 6, KEY_RESERVED),
+	DEFINE_KEY(0, 7, KEY_RESERVED),
 
-	DEFINE_KEY(2, 1, KEY_8),
-	DEFINE_KEY(3, 0, KEY_9),
+	DEFINE_KEY(1, 0, KEY_RESERVED), /// col 0 not used in zkpk2
+	DEFINE_KEY(1, 1, KEY_ESC),
+	DEFINE_KEY(1, 2, KEY_UP),
+	DEFINE_KEY(1, 3, KEY_ENTER),
+	DEFINE_KEY(1, 4, KEY_LEFTSHIFT),
+	DEFINE_KEY(1, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
+	DEFINE_KEY(1, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
+	DEFINE_KEY(1, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
+
+	DEFINE_KEY(2, 0, KEY_RESERVED), /// col 0 not used in zkpk2
+	DEFINE_KEY(2, 1, KEY_RIGHT),
+	DEFINE_KEY(2, 2, KEY_DOWN),
+	DEFINE_KEY(2, 3, KEY_LEFT),
+	DEFINE_KEY(2, 4, KEY_LEFTCTRL),
+	DEFINE_KEY(2, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
+	DEFINE_KEY(2, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
+	DEFINE_KEY(2, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
 	
-	DEFINE_KEY(3, 1, KEY_7),
+	DEFINE_KEY(3, 0, KEY_RESERVED), /// col 0 not used in zkpk2
+	DEFINE_KEY(3, 1, KEY_3),
+	DEFINE_KEY(3, 2, KEY_2),
+	DEFINE_KEY(3, 3, KEY_1),
+	DEFINE_KEY(3, 4, KEY_LEFTALT),
+	DEFINE_KEY(3, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
+	DEFINE_KEY(3, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
+	DEFINE_KEY(3, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
+	
+	DEFINE_KEY(4, 0, KEY_RESERVED), /// col 0 not used in zkpk2
+	DEFINE_KEY(4, 1, KEY_6),
+	DEFINE_KEY(4, 2, KEY_5),
+	DEFINE_KEY(4, 3, KEY_4),
+	DEFINE_KEY(4, 4, KEY_LEFTMETA),
+	DEFINE_KEY(4, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
+	DEFINE_KEY(4, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
+	DEFINE_KEY(4, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
 
-	DEFINE_KEY(7, 2, KEY_SLASH),
-	DEFINE_KEY(4, 0, KEY_KPASTERISK),
-	DEFINE_KEY(5, 2, KEY_MINUS),
-	DEFINE_KEY(6, 2, KEY_KPPLUS),
+	DEFINE_KEY(5, 0, KEY_RESERVED), /// col 0 not used in zkpk2
+	DEFINE_KEY(5, 1, KEY_9),
+	DEFINE_KEY(5, 2, KEY_8),
+	DEFINE_KEY(5, 3, KEY_7),
+	DEFINE_KEY(5, 4, KEY_RESERVED), /// NC
+	DEFINE_KEY(5, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
+	DEFINE_KEY(5, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
+	DEFINE_KEY(5, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
 
-	DEFINE_KEY(4, 2, KEY_S),
-	DEFINE_KEY(3, 2, KEY_V),
-	DEFINE_KEY(7, 1, KEY_K),
-	DEFINE_KEY(7, 0, KEY_B),
-	DEFINE_KEY(6, 1, KEY_U),
-	DEFINE_KEY(6, 0, KEY_LEFTBRACE),
-	DEFINE_KEY(5, 1, KEY_N),
-	DEFINE_KEY(5, 0, KEY_P),
-	DEFINE_KEY(4, 1, KEY_A),
+	DEFINE_KEY(6, 0, KEY_RESERVED), /// col 0 not used in zkpk2
+	DEFINE_KEY(6, 1, KEY_KPMINUS),
+	DEFINE_KEY(6, 2, KEY_0),
+	DEFINE_KEY(6, 3, KEY_KPPLUS),
+	DEFINE_KEY(6, 4, KEY_RESERVED), /// NC
+	DEFINE_KEY(6, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
+	DEFINE_KEY(6, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
+	DEFINE_KEY(6, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
+	
+	DEFINE_KEY(7, 0, KEY_RESERVED), /// row 7 not used in zkpk2
+	DEFINE_KEY(7, 1, KEY_RESERVED),
+	DEFINE_KEY(7, 2, KEY_RESERVED),
+	DEFINE_KEY(7, 3, KEY_RESERVED),
+	DEFINE_KEY(7, 4, KEY_RESERVED),
+	DEFINE_KEY(7, 5, KEY_RESERVED),
+	DEFINE_KEY(7, 6, KEY_RESERVED),
+	DEFINE_KEY(7, 7, KEY_RESERVED),
 };
 
-static struct matrix_keymap_data max7359_data = {
+static struct matrix_keymap_data board_map_data = {
 	.keymap = pl_keys,
 	.keymap_size = ARRAY_SIZE(pl_keys),
 };
 
+static struct max7359_platform_data blueshark_max7359data =  {
+	.keymap_data = &board_map_data,
+	.init_platform_hw = max7359_init_irq,
+	.exit_platform_hw = max7359_exit_irq,
+};
+
 static struct i2c_board_info __initdata pl_i2c_devices_boardinfo[] = {
 	{
-		I2C_BOARD_INFO("max7359", 0x3a),
-		.platform_data = &max7359_data,
+		I2C_BOARD_INFO("max7359", 0x38),
+		.platform_data = &blueshark_max7359data,
+		.irq = OMAP_GPIO_IRQ(GPIO_MAX7359_IRQ),
 	},
 };
 /*
@@ -369,7 +496,6 @@ static struct platform_device omap_vwlan_device = {
 	},
 };
 #endif
-#define OMAP3BEAGLE_GPIO_MAX7359_IRQ 145
 
 #if defined(CONFIG_ENC28J60) || defined(CONFIG_ENC28J60_MODULE)
 
@@ -404,7 +530,7 @@ static void __init omap3beagle_enc28j60_init(void)
 		printk(KERN_ERR "could not obtain gpio for ENC28J60_IRQ\n");
 		return;
 	}
-
+#error "ooo"
 	spi_register_board_info(omap3beagle_zippy_spi_board_info,
 			ARRAY_SIZE(omap3beagle_zippy_spi_board_info));
 }
@@ -413,18 +539,8 @@ static void __init omap3beagle_enc28j60_init(void)
 static inline void __init omap3beagle_enc28j60_init(void) { return; }
 #endif
 
-#define MAX1233_GPIO_IRQ 133
-
-static struct max1233_platform_data max1233_config = {
-	.model = 1233,
-	.stopacq_polarity = 1,
-	.first_conversion_delay = 1,
-	.acquisition_time = 1,
-	.averaging = 1,
-	.pen_down_acc_interval = 1,
-};
-
 static struct spi_board_info pl_spi_board_info[] = {
+#if 0
 	{
 		.modalias	= "spidev",
 		.max_speed_hz	= 3000000, //48 Mbps
@@ -432,29 +548,22 @@ static struct spi_board_info pl_spi_board_info[] = {
 		.chip_select	= 1,
 		.mode = 0,
 	},
+#endif
 	{
-		.modalias	= "max1233",
-		.max_speed_hz	= 1000000,
-		.bus_num	= 3,
+		.modalias		= "ads7846",
+		.bus_num		= 1,
 		.chip_select		= 0,
-		//.mode = SPI_CPOL,
-		//.mode = SPI_CPHA,
-		//.mode = SPI_CPHA | SPI_CPOL,
-		.mode = 0,
-		.platform_data  = &max1233_config,
+		.max_speed_hz		= 1500000,
+		.controller_data	= &ads7846_mcspi_config,
+		.irq			= OMAP_GPIO_IRQ(BLUESHARK_GPIO_PENDOWN),
+		.platform_data		= &ads7846_config,
 	},
 };
 
 
 static void __init pl_init_spi(void)
 {
-	if (gpio_request(MAX1233_GPIO_IRQ, "MAX1233_GPIO_IRQ") == 0 &&
-	    gpio_direction_input(MAX1233_GPIO_IRQ) == 0) {
-		pl_spi_board_info[1].irq = OMAP_GPIO_IRQ(MAX1233_GPIO_IRQ);
-		irq_set_irq_type(pl_spi_board_info[1].irq, IRQ_TYPE_EDGE_FALLING);
-	} else
-		pl_spi_board_info[1].irq = 0;
-
+	blueshark_ads7846_init();
 	spi_register_board_info(pl_spi_board_info,
 				ARRAY_SIZE(pl_spi_board_info));
 }
@@ -492,7 +601,7 @@ static void __init omap3beagle_ks8851_init(void)
 		printk(KERN_ERR "could not obtain gpio for KS8851_IRQ\n");
 		return;
 	}
-	
+#error "boo"
 	spi_register_board_info(omap3beagle_zippy2_spi_board_info,
 							ARRAY_SIZE(omap3beagle_zippy2_spi_board_info));
 }
@@ -572,6 +681,7 @@ static struct omap_dss_device beagle_tv_device = {
 
 static int beagle_enable_lcd(struct omap_dss_device *dssdev)
 {
+#if 0
        if (gpio_is_valid(beagle_config.lcd_pwren)) {
                printk(KERN_INFO "%s: Enabling LCD\n", __FUNCTION__);
                gpio_set_value(beagle_config.lcd_pwren, 0);
@@ -579,12 +689,13 @@ static int beagle_enable_lcd(struct omap_dss_device *dssdev)
                printk(KERN_INFO "%s: Invalid LCD enable GPIO: %d\n",
                        __FUNCTION__, beagle_config.lcd_pwren);
        }
-
+#endif
        return 0;
 }
 
 static void beagle_disable_lcd(struct omap_dss_device *dssdev)
 {
+#if 0
        if (gpio_is_valid(beagle_config.lcd_pwren)) {
                printk(KERN_INFO "%s: Disabling LCD\n", __FUNCTION__);
                gpio_set_value(beagle_config.lcd_pwren, 1);
@@ -592,12 +703,12 @@ static void beagle_disable_lcd(struct omap_dss_device *dssdev)
                printk(KERN_INFO "%s: Invalid LCD enable GPIO: %d\n",
                        __FUNCTION__, beagle_config.lcd_pwren);
        }
-
+#endif
        return;
 }
 
 static struct panel_generic_dpi_data lcd_panel = {
-	.name = "tfc_s9700rtwv35tr-01b",
+	.name = "generic",
 	.platform_enable = beagle_enable_lcd,
 	.platform_disable = beagle_disable_lcd,
 };
@@ -606,7 +717,7 @@ static struct omap_dss_device beagle_lcd_device = {
 	.type                   = OMAP_DISPLAY_TYPE_DPI,
 	.name                   = "lcd",
 	.driver_name		= "generic_dpi_panel",
-	.phy.dpi.data_lines     = 24,
+	.phy.dpi.data_lines     = 18,
 	.platform_enable        = beagle_enable_lcd,
 	.platform_disable       = beagle_disable_lcd,
 	.reset_gpio 		= -EINVAL,
@@ -622,7 +733,7 @@ static struct omap_dss_device *beagle_dss_devices[] = {
 static struct omap_dss_board_info beagle_dss_data = {
 	.num_devices = ARRAY_SIZE(beagle_dss_devices),
 	.devices = beagle_dss_devices,
-	.default_device = &beagle_dvi_device,
+	.default_device = &beagle_lcd_device,
 };
 
 static void __init beagle_display_init(void)
@@ -633,11 +744,12 @@ static void __init beagle_display_init(void)
 			     "DVI reset");
 	if (r < 0)
 		printk(KERN_ERR "Unable to get DVI reset GPIO\n");
-
+#if 0
        r = gpio_request_one(beagle_config.lcd_pwren, GPIOF_OUT_INIT_LOW,
                             "LCD power");
        if (r < 0)
                printk(KERN_ERR "Unable to get LCD power enable GPIO\n");
+#endif
 }
 
 #include "sdram-micron-mt46h32m32lf-6.h"
@@ -856,21 +968,10 @@ static int __init omap3_beagle_i2c_init(void)
 	 * projector don't work reliably with 400kHz */
 //	omap_register_i2c_bus(3, 100, beagle_i2c_eeprom, ARRAY_SIZE(beagle_i2c_eeprom));
 
-	omap_mux_init_gpio(OMAP3BEAGLE_GPIO_MAX7359_IRQ, OMAP_PIN_INPUT);
-	if ((gpio_request(OMAP3BEAGLE_GPIO_MAX7359_IRQ, "MAX7359_IRQ") == 0) &&
-	    (gpio_direction_input(OMAP3BEAGLE_GPIO_MAX7359_IRQ) == 0)) {
-		gpio_export(OMAP3BEAGLE_GPIO_MAX7359_IRQ, 1);
-		pl_i2c_devices_boardinfo[0].irq	= OMAP_GPIO_IRQ(OMAP3BEAGLE_GPIO_MAX7359_IRQ);
-		irq_set_irq_type(pl_i2c_devices_boardinfo[0].irq, /*IRQ_TYPE_LEVEL_LOW*/IRQ_TYPE_EDGE_FALLING);
-	} else {
-		printk(KERN_ERR "could not obtain gpio for MAX7359_IRQ\n");
-		return -1;
-	}
-
 
 	/* Bus 3 is attached to the DVI port where devices like the pico DLP
 	 * projector don't work reliably with 400kHz */
-	omap_register_i2c_bus(3, 100, pl_i2c_devices_boardinfo, ARRAY_SIZE(pl_i2c_devices_boardinfo));
+	omap_register_i2c_bus(2, 100, pl_i2c_devices_boardinfo, ARRAY_SIZE(pl_i2c_devices_boardinfo));
 	
 
 	return 0;
@@ -1036,7 +1137,6 @@ static void __init beagle_opp_init(void)
 	return;
 }
 
-#define POWEROFF_GPIO 15
 
 static void omap3_pl_poweroff(void)
 {
@@ -1054,7 +1154,7 @@ static void __init zkpk_init(void)
 		98, 111, 162, 109, 15, 104, 106, 96, 103, 145, 97, 197,
 		108, 105, 136, 130, 139, 132, 133, 131, 101, 156, 95, 129, 137, 135, 134
 #else
-		145, 97
+		145, 96, 97, 108, 110, 111
 #endif
 	};
 	int i;
@@ -1063,6 +1163,10 @@ static void __init zkpk_init(void)
 		gpio_request(mygpio[i], "sysfs");
 		gpio_export(mygpio[i], 1);
 	}
+
+       gpio_request(159, "DPSV");
+       gpio_direction_output(159, 0);
+       gpio_set_value(159, 0);
 }
 
 static void __init omap3_beagle_init(void)

@@ -2284,7 +2284,6 @@ void dispc_set_tft_data_lines(enum omap_channel channel, u8 data_lines)
 		BUG();
 		return;
 	}
-
 	enable_clocks(1);
 	if (channel == OMAP_DSS_CHANNEL_LCD2)
 		REG_FLD_MOD(DISPC_CONTROL2, code, 9, 8);
