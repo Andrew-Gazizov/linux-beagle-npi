@@ -194,7 +194,7 @@ static const uint32_t pl_keys[] = {
 	DEFINE_KEY(1, 1, KEY_ESC),
 	DEFINE_KEY(1, 2, KEY_UP),
 	DEFINE_KEY(1, 3, KEY_ENTER),
-	DEFINE_KEY(1, 4, KEY_LEFTSHIFT),
+	DEFINE_KEY(1, 4, KEY_LEFTSHIFT),//f1
 	DEFINE_KEY(1, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
 	DEFINE_KEY(1, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
 	DEFINE_KEY(1, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
@@ -203,7 +203,7 @@ static const uint32_t pl_keys[] = {
 	DEFINE_KEY(2, 1, KEY_RIGHT),
 	DEFINE_KEY(2, 2, KEY_DOWN),
 	DEFINE_KEY(2, 3, KEY_LEFT),
-	DEFINE_KEY(2, 4, KEY_LEFTCTRL),
+	DEFINE_KEY(2, 4, KEY_LEFTCTRL),//f2
 	DEFINE_KEY(2, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
 	DEFINE_KEY(2, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
 	DEFINE_KEY(2, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
@@ -212,7 +212,7 @@ static const uint32_t pl_keys[] = {
 	DEFINE_KEY(3, 1, KEY_3),
 	DEFINE_KEY(3, 2, KEY_2),
 	DEFINE_KEY(3, 3, KEY_1),
-	DEFINE_KEY(3, 4, KEY_LEFTALT),
+	DEFINE_KEY(3, 4, KEY_LEFTALT),//f3
 	DEFINE_KEY(3, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
 	DEFINE_KEY(3, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
 	DEFINE_KEY(3, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
@@ -221,7 +221,7 @@ static const uint32_t pl_keys[] = {
 	DEFINE_KEY(4, 1, KEY_6),
 	DEFINE_KEY(4, 2, KEY_5),
 	DEFINE_KEY(4, 3, KEY_4),
-	DEFINE_KEY(4, 4, KEY_LEFTMETA),
+	DEFINE_KEY(4, 4, KEY_F4),//f4
 	DEFINE_KEY(4, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
 	DEFINE_KEY(4, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
 	DEFINE_KEY(4, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
@@ -366,7 +366,7 @@ static void __init omap3_beagle_init_rev(void)
 {
 	int ret;
 	u16 beagle_rev = 0;
-
+#if 0
 	omap_mux_init_gpio(171, OMAP_PIN_INPUT_PULLUP);
 	omap_mux_init_gpio(172, OMAP_PIN_INPUT_PULLUP);
 	omap_mux_init_gpio(173, OMAP_PIN_INPUT_PULLUP);
@@ -384,7 +384,8 @@ static void __init omap3_beagle_init_rev(void)
 
 	gpio_free_array(omap3_beagle_rev_gpios,
 			ARRAY_SIZE(omap3_beagle_rev_gpios));
-
+#endif
+	beagle_rev = 0;
 	switch (beagle_rev) {
 	case 7:
 		printk(KERN_INFO "OMAP3 Beagle Rev: Ax/Bx\n");
