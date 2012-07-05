@@ -186,7 +186,7 @@ static void max7359_initialize(struct i2c_client *client)
 		MAX7359_CFG_WAKEUP); /* Key press wakeup enable */
 		
 	/* Full key-scan functionality */
-	ret = max7359_write_reg(client, MAX7359_REG_DEBOUNCE, 0x7F); /// debounce 40ms and GPO PORTS 5,6,7 enabled
+	ret = max7359_write_reg(client, MAX7359_REG_DEBOUNCE, 0x5F); /// debounce 40ms and GPO PORTS 5,6,7 enabled
 	
 	/* nINT asserts every debounce cycles */
 	ret = max7359_write_reg(client, MAX7359_REG_INTERRUPT, 0x01);
