@@ -270,6 +270,9 @@ static struct i2c_board_info __initdata pl_i2c_devices_boardinfo[] = {
 		.platform_data = &blueshark_max7359data,
 		.irq = OMAP_GPIO_IRQ(GPIO_MAX7359_IRQ),
 	},
+	{
+		I2C_BOARD_INFO("hmc5843", 0x1e),
+	},
 };
 /*
  * This device path represents the onboard USB <-> Ethernet bridge
