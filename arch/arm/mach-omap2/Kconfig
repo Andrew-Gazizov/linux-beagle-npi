@@ -74,6 +74,11 @@ config SOC_OMAP3430
 	default y
 	select ARCH_OMAP_OTG
 
+config BLUE_BRYN
+  bool "Blue Bryn support"
+  depends on ARCH_OMAP3
+	default n
+
 config SOC_OMAPTI816X
 	bool "TI816X support"
 	depends on ARCH_OMAP3
