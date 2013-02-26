@@ -176,7 +176,7 @@ static void max7359_close(struct input_dev *dev)
 	max7359_fall_deepsleep(keypad->client);
 }
 
-static void max7359_initialize(struct i2c_client *client)
+static void max7359_initialize(struct i2c_client *client, u8 debounce_reg_val)
 {
 	int ret;
 
@@ -186,7 +186,7 @@ static void max7359_initialize(struct i2c_client *client)
 		MAX7359_CFG_WAKEUP); /* Key press wakeup enable */
 		
 	/* Full key-scan functionality */
-	ret = max7359_write_reg(client, MAX7359_REG_DEBOUNCE, 0x5F); /// debounce 40ms and GPO PORTS 5,6,7 enabled
+	ret = max7359_write_reg(client, MAX7359_REG_DEBOUNCE, debounce_reg_val);
 	
 	/* nINT asserts every debounce cycles */
 	ret = max7359_write_reg(client, MAX7359_REG_INTERRUPT, 0x01);
@@ -305,7 +305,7 @@ static int __devinit max7359_probe(struct i2c_client *client,
 	}
 
 	/* Initialize MAX7359 */
-	max7359_initialize(client);
+	max7359_initialize(client, pdata->debounce_reg_val);
 	
 	i2c_set_clientdata(client, keypad);
 	device_init_wakeup(&client->dev, 1);

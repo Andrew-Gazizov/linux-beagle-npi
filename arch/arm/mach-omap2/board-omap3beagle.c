@@ -97,21 +97,38 @@ static int ads7846_get_pendown_state(void)
 	return !gpio_get_value(BLUESHARK_GPIO_PENDOWN);
 }
 
+static struct ads7846_platform_data ads7846_config_zkpk = {
+	.x_max			= 0x0fff,
+	.y_max			= 0x0fff,
+	.x_plate_ohms		= 550,
+	.y_plate_ohms		= 300,
+	.pressure_max		= 255,
+	.get_pendown_state	= ads7846_get_pendown_state,
+	.keep_vref_on		= 1,
+	.model			= 7845,
+	.vref_mv		= 3300,
+	.penirq_recheck_delay_usecs = 3000,
+	.settle_delay_usecs = 150,
+	.debounce_max		= 10,
+	.debounce_tol		= 3,
+	.debounce_rep		= 2,
+	.swap_xy		= true, /// актуально для ЗКПК и xf86-input-evdev, поскольку xinput-calibrator глючит с перепутанными осями
+};
 
-static struct ads7846_platform_data ads7846_config = {
+static struct ads7846_platform_data ads7846_config_pkk = {
 	.x_max			= 0x0fff,
 	.y_max			= 0x0fff,
 	.x_plate_ohms		= 550,
 	.y_plate_ohms		= 300,
 	.pressure_max		= 4096, /// подбирается эмпирически, зависит от x_plate_ohms (вычисляется), также зависит от места нажатия на тачскрине
-	.debounce_max		= 10,
-	.debounce_tol		= 5,
-	.debounce_rep		= 1,
 	.get_pendown_state	= ads7846_get_pendown_state,
 	.keep_vref_on		= 1,
 	.model			= 7846,
-	.settle_delay_usecs	= 150,
 	.penirq_recheck_delay_usecs = 3000,
+	.settle_delay_usecs	= 150,
+	.debounce_max		= 10,
+	.debounce_tol		= 5,
+	.debounce_rep		= 1,
 	.swap_xy		= true,
 };
 
@@ -179,7 +196,81 @@ static void max7359_exit_irq(void)
 
 #define DEFINE_KEY(row, col, keycode) ((row << 24) | (col << 16) | keycode)
 
-static const uint32_t pl_keys[] = {
+static const uint32_t pl_keys_zkpk[] = {
+	DEFINE_KEY(0, 0, KEY_RESERVED), /// row 0 not used in zkpk2
+	DEFINE_KEY(0, 1, KEY_RESERVED),
+	DEFINE_KEY(0, 2, KEY_RESERVED),
+	DEFINE_KEY(0, 3, KEY_RESERVED),
+	DEFINE_KEY(0, 4, KEY_RESERVED),
+	DEFINE_KEY(0, 5, KEY_RESERVED),
+	DEFINE_KEY(0, 6, KEY_RESERVED),
+	DEFINE_KEY(0, 7, KEY_RESERVED),
+
+	DEFINE_KEY(1, 0, KEY_RESERVED), /// col 0 not used in zkpk2
+	DEFINE_KEY(1, 1, KEY_ESC),
+	DEFINE_KEY(1, 2, KEY_UP),
+	DEFINE_KEY(1, 3, KEY_ENTER),
+	DEFINE_KEY(1, 4, KEY_LEFTSHIFT),//f1
+	DEFINE_KEY(1, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
+	DEFINE_KEY(1, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
+	DEFINE_KEY(1, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
+
+	DEFINE_KEY(2, 0, KEY_RESERVED), /// col 0 not used in zkpk2
+	DEFINE_KEY(2, 1, KEY_RIGHT),
+	DEFINE_KEY(2, 2, KEY_DOWN),
+	DEFINE_KEY(2, 3, KEY_LEFT),
+	DEFINE_KEY(2, 4, KEY_LEFTCTRL),//f2
+	DEFINE_KEY(2, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
+	DEFINE_KEY(2, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
+	DEFINE_KEY(2, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
+	
+	DEFINE_KEY(3, 0, KEY_RESERVED), /// col 0 not used in zkpk2
+	DEFINE_KEY(3, 1, KEY_3),
+	DEFINE_KEY(3, 2, KEY_2),
+	DEFINE_KEY(3, 3, KEY_1),
+	DEFINE_KEY(3, 4, KEY_LEFTALT),//f3
+	DEFINE_KEY(3, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
+	DEFINE_KEY(3, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
+	DEFINE_KEY(3, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
+	
+	DEFINE_KEY(4, 0, KEY_RESERVED), /// col 0 not used in zkpk2
+	DEFINE_KEY(4, 1, KEY_6),
+	DEFINE_KEY(4, 2, KEY_5),
+	DEFINE_KEY(4, 3, KEY_4),
+	DEFINE_KEY(4, 4, KEY_F4),//f4
+	DEFINE_KEY(4, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
+	DEFINE_KEY(4, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
+	DEFINE_KEY(4, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
+
+	DEFINE_KEY(5, 0, KEY_RESERVED), /// col 0 not used in zkpk2
+	DEFINE_KEY(5, 1, KEY_9),
+	DEFINE_KEY(5, 2, KEY_8),
+	DEFINE_KEY(5, 3, KEY_7),
+	DEFINE_KEY(5, 4, KEY_RESERVED), /// NC
+	DEFINE_KEY(5, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
+	DEFINE_KEY(5, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
+	DEFINE_KEY(5, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
+
+	DEFINE_KEY(6, 0, KEY_RESERVED), /// col 0 not used in zkpk2
+	DEFINE_KEY(6, 1, KEY_KPMINUS),
+	DEFINE_KEY(6, 2, KEY_0),
+	DEFINE_KEY(6, 3, KEY_KPPLUS),
+	DEFINE_KEY(6, 4, KEY_RESERVED), /// NC
+	DEFINE_KEY(6, 5, KEY_RESERVED), /// col 5 used as GPO port in zkpk2
+	DEFINE_KEY(6, 6, KEY_RESERVED), /// col 6 used as GPO port in zkpk2
+	DEFINE_KEY(6, 7, KEY_RESERVED), /// col 7 used as GPO port in zkpk2
+	
+	DEFINE_KEY(7, 0, KEY_RESERVED), /// row 7 not used in zkpk2
+	DEFINE_KEY(7, 1, KEY_RESERVED),
+	DEFINE_KEY(7, 2, KEY_RESERVED),
+	DEFINE_KEY(7, 3, KEY_RESERVED),
+	DEFINE_KEY(7, 4, KEY_RESERVED),
+	DEFINE_KEY(7, 5, KEY_RESERVED),
+	DEFINE_KEY(7, 6, KEY_RESERVED),
+	DEFINE_KEY(7, 7, KEY_RESERVED),
+};
+
+static const uint32_t pl_keys_pkk[] = {
 	KEY(0, 0, KEY_RESERVED), /// row 0 not used in zkpk2
 	KEY(0, 1, KEY_RESERVED),
 	KEY(0, 2, KEY_RESERVED),
@@ -253,10 +344,7 @@ static const uint32_t pl_keys[] = {
 	KEY(7, 7, KEY_RESERVED),
 };
 
-static struct matrix_keymap_data board_map_data = {
-	.keymap = pl_keys,
-	.keymap_size = ARRAY_SIZE(pl_keys),
-};
+static struct matrix_keymap_data board_map_data;
 
 static struct max7359_platform_data blueshark_max7359data =  {
 	.keymap_data = &board_map_data,
@@ -368,7 +456,7 @@ static void __init omap3_beagle_init_rev(void)
 {
 	int ret;
 	u16 beagle_rev = 0;
-#if 0
+#ifndef CONFIG_BLUE_BRYN
 	omap_mux_init_gpio(171, OMAP_PIN_INPUT_PULLUP);
 	omap_mux_init_gpio(172, OMAP_PIN_INPUT_PULLUP);
 	omap_mux_init_gpio(173, OMAP_PIN_INPUT_PULLUP);
@@ -559,13 +647,19 @@ static struct spi_board_info pl_spi_board_info[] = {
 		.max_speed_hz		= 1500000,
 		.controller_data	= &ads7846_mcspi_config,
 		.irq			= OMAP_GPIO_IRQ(BLUESHARK_GPIO_PENDOWN),
-		.platform_data		= &ads7846_config,
+    //		.platform_data		= &ads7846_config,
 	},
 };
 
 
 static void __init pl_init_spi(void)
 {
+	if (strcmp(expansionboard_name, "pkk") == 0)
+    pl_spi_board_info[0].platform_data = &ads7846_config_pkk;
+  else if (strcmp(expansionboard_name, "zkpk") == 0)
+    pl_spi_board_info[0].platform_data = &ads7846_config_zkpk;
+  else
+    return;
 	blueshark_ads7846_init();
 	spi_register_board_info(pl_spi_board_info,
 				ARRAY_SIZE(pl_spi_board_info));
@@ -971,7 +1065,16 @@ static int __init omap3_beagle_i2c_init(void)
 	 * projector don't work reliably with 400kHz */
 //	omap_register_i2c_bus(3, 100, beagle_i2c_eeprom, ARRAY_SIZE(beagle_i2c_eeprom));
 
-
+	if (strcmp(expansionboard_name, "pkk") == 0) {
+		printk(KERN_INFO "Beagle expansionboard: PKK\n");
+    board_map_data.keymap = pl_keys_pkk;
+    board_map_data.keymap_size = ARRAY_SIZE(pl_keys_pkk);
+    blueshark_max7359data.debounce_reg_val = 0x5F;
+  } else if (strcmp(expansionboard_name, "zkpk") == 0) {
+    board_map_data.keymap = pl_keys_zkpk;
+    board_map_data.keymap_size = ARRAY_SIZE(pl_keys_zkpk);
+    blueshark_max7359data.debounce_reg_val = 0x7F;
+  }
 	/* Bus 3 is attached to the DVI port where devices like the pico DLP
 	 * projector don't work reliably with 400kHz */
 	omap_register_i2c_bus(2, 100, pl_i2c_devices_boardinfo, ARRAY_SIZE(pl_i2c_devices_boardinfo));
