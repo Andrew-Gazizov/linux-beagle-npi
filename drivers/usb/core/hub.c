@@ -1162,7 +1162,7 @@ static int hub_configure(struct usb_hub *hub,
 				dev_warn(hub_dev,
 					"insufficient power available "
 					"to use all downstream ports\n");
-			hub->mA_per_port = 100;		/* 7.2.1.1 */
+			hub->mA_per_port = 500;		/* 7.2.1.1 */
 		}
 	} else {	/* Self-powered external hub */
 		/* FIXME: What about battery-powered external hubs that
