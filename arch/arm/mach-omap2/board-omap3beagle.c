@@ -361,6 +361,9 @@ static struct i2c_board_info __initdata pl_i2c_devices_boardinfo[] = {
 	{
 		I2C_BOARD_INFO("hmc5843", 0x1e),
 	},
+  {
+    I2C_BOARD_INFO("ds1307", 0x68),
+  }
 };
 /*
  * This device path represents the onboard USB <-> Ethernet bridge
@@ -518,6 +521,7 @@ static void __init omap3_beagle_init_rev(void)
 
 char expansionboard_name[16];
 char expansionboard2_name[16];
+char motherb_name[16];
 
 #if defined(CONFIG_WL12XX) || defined(CONFIG_WL12XX_MODULE)
 #include <linux/regulator/fixed.h>
@@ -1177,6 +1181,16 @@ static struct omap_board_mux board_mux[] __initdata = {
 };
 #endif
 
+static int __init motherb_setup(char *str)
+{
+	if (!str)
+		return -EINVAL;
+  strncpy(motherb_name, str, 15);
+  motherb_name[15] = '\0';
+  printk(KERN_INFO "Mother board name: %s\n", motherb_name);
+  return 0;
+}
+
 static int __init expansionboard_setup(char *str)
 {
 	if (!str)
@@ -1270,9 +1284,81 @@ static void __init zkpk_init(void)
 		gpio_export(mygpio[i], 1);
 	}
 
-       gpio_request(159, "DPSV");
-       gpio_direction_output(159, 0);
-       gpio_set_value(159, 0);
+  gpio_request(101, "SW_OSW_ZARA");
+  gpio_direction_output(101, 0);
+  gpio_set_value(101, 0);
+  gpio_export(101, 1);
+
+  gpio_request(159, "DPSV");
+  gpio_direction_output(159, 0);
+
+  if (strcmp(motherb_name, "v4") == 0) {
+    gpio_set_value(159, 1);
+
+    gpio_request(97, "LCD_ON");
+    gpio_direction_output(97, 0);
+    gpio_set_value(97, 0);
+    gpio_export(97, 1);
+
+    gpio_request(145, "LCD_SHDN#");
+    gpio_direction_output(145, 0);
+    gpio_set_value(145, 1);
+    gpio_export(145, 1);
+
+    gpio_request(139, "USB_RS_ON");
+    gpio_direction_output(139, 0);
+    gpio_set_value(139, 0);
+    gpio_export(139, 1);
+
+    gpio_request(110, "X_BEE_WIFI_ON");
+    gpio_direction_output(110, 1);
+    gpio_set_value(110, 1);
+
+    gpio_request(109, "XBEE_DTR");
+    gpio_direction_output(109, 0);
+    gpio_set_value(109, 0);
+    gpio_export(109, 1);
+
+    gpio_set_value(110, 0);
+    gpio_export(110, 1);
+
+    gpio_request(126, "XBEE_RES");
+    gpio_direction_output(126, 0);
+    gpio_set_value(126, 0);
+    gpio_export(126, 1);
+
+    gpio_request(157, "DPSH");
+    gpio_direction_output(157, 0);
+    gpio_export(157, 1);
+
+    gpio_request(111, "USB_OTR_HOST_EN");
+    gpio_direction_output(111, 0);
+    gpio_export(111, 1);
+  } else {
+    gpio_set_value(159, 0);
+    
+    gpio_request(139, "USB_RS_ON");
+    gpio_direction_output(139, 0);
+    gpio_set_value(139, 1);
+    gpio_export(139, 1);
+
+    gpio_request(110, "X_BEE_WIFI_ON");
+    gpio_direction_output(110, 0);
+    gpio_set_value(110, 0);    
+
+    gpio_request(109, "XBEE_DTR");
+    gpio_direction_output(109, 0);
+    gpio_set_value(109, 0);
+    gpio_export(109, 1);
+
+    gpio_set_value(110, 1);
+    gpio_export(110, 1);
+
+    gpio_request(126, "XBEE_RES");
+    gpio_direction_output(126, 0);
+    gpio_set_value(126, 0);
+    gpio_export(126, 1);
+  }
 }
 
 static void __init omap3_beagle_init(void)
@@ -1401,6 +1487,7 @@ static void __init omap3_beagle_init(void)
 }
 
 early_param("buddy", expansionboard_setup);
+early_param("motherb", motherb_setup);
 early_param("buddy2", expansionboard2_setup);
 
 MACHINE_START(OMAP3_BEAGLE, "OMAP3 Beagle Board")
