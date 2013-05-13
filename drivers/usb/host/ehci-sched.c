@@ -236,7 +236,7 @@ static inline unsigned char tt_start_uframe(struct ehci_hcd *ehci, __hc32 mask)
 }
 
 static const unsigned char
-max_tt_usecs[] = { 125, 125, 125, 125, 125, 125, 30, 0 };
+max_tt_usecs[] = { 125, 125, 125, 125, 125, 125, 125, 25 };
 
 /* carryover low/fullspeed bandwidth that crosses uframe boundries */
 static inline void carryover_tt_bandwidth(unsigned short tt_usecs[8])
@@ -1479,30 +1479,36 @@ iso_stream_schedule (
 	 * jump until after the queue is primed.
 	 */
 	else {
+		int done = 0;
 		start = SCHEDULE_SLOP + (now & ~0x07);
 
 		/* NOTE:  assumes URB_ISO_ASAP, to limit complexity/bugs */
 
-		/* find a uframe slot with enough bandwidth */
-		next = start + period;
-		for (; start < next; start++) {
-
+		/* find a uframe slot with enough bandwidth.
+		 * Early uframes are more precious because full-speed
+		 * iso IN transfers can't use late uframes,
+		 * and therefore they should be allocated last.
+		 */
+		next = start;
+		start += period;
+		do {
+			start--;
 			/* check schedule: enough space? */
 			if (stream->highspeed) {
 				if (itd_slot_ok(ehci, mod, start,
 						stream->usecs, period))
-					break;
+					done = 1;
 			} else {
 				if ((start % 8) >= 6)
 					continue;
 				if (sitd_slot_ok(ehci, mod, stream,
 						start, sched, period))
-					break;
+					done = 1;
 			}
-		}
+		} while (start > next && !done);
 
 		/* no room in the schedule */
-		if (start == next) {
+		if (!done) {
 			ehci_dbg(ehci, "iso resched full %p (now %d max %d)\n",
 				urb, now, now + mod);
 			status = -ENOSPC;
