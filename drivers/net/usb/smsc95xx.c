@@ -65,51 +65,44 @@ MODULE_PARM_DESC(turbo_mode, "Enable multiple frames per Rx transaction");
 
 static int smsc95xx_read_reg(struct usbnet *dev, u32 index, u32 *data)
 {
-	u32 *buf = kmalloc(4, GFP_KERNEL);
+	u32 buf;
 	int ret;
 
 	BUG_ON(!dev);
 
-	if (!buf)
-		return -ENOMEM;
-
 	ret = usb_control_msg(dev->udev, usb_rcvctrlpipe(dev->udev, 0),
 		USB_VENDOR_REQUEST_READ_REGISTER,
 		USB_DIR_IN | USB_TYPE_VENDOR | USB_RECIP_DEVICE,
-		00, index, buf, 4, USB_CTRL_GET_TIMEOUT);
+		00, index, &buf, 4, USB_CTRL_GET_TIMEOUT);
 
 	if (unlikely(ret < 0))
 		netdev_warn(dev->net, "Failed to read register index 0x%08x\n", index);
 
-	le32_to_cpus(buf);
-	*data = *buf;
-	kfree(buf);
+	le32_to_cpus(&buf);
+	*data = buf;
 
 	return ret;
 }
 
 static int smsc95xx_write_reg(struct usbnet *dev, u32 index, u32 data)
 {
-	u32 *buf = kmalloc(4, GFP_KERNEL);
+	u32 buf;
 	int ret;
 
 	BUG_ON(!dev);
 
-	if (!buf)
-		return -ENOMEM;
-
-	*buf = data;
-	cpu_to_le32s(buf);
+	
+	buf = data;
+	cpu_to_le32s(&buf);
 
 	ret = usb_control_msg(dev->udev, usb_sndctrlpipe(dev->udev, 0),
 		USB_VENDOR_REQUEST_WRITE_REGISTER,
 		USB_DIR_OUT | USB_TYPE_VENDOR | USB_RECIP_DEVICE,
-		00, index, buf, 4, USB_CTRL_SET_TIMEOUT);
+		00, index, &buf, 4, USB_CTRL_SET_TIMEOUT);
 
 	if (unlikely(ret < 0))
 		netdev_warn(dev->net, "Failed to write register index 0x%08x\n", index);
 
-	kfree(buf);
 
 	return ret;
 }
