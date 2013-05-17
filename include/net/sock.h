@@ -564,6 +564,14 @@ enum sock_flags {
 	SOCK_TIMESTAMPING_SYS_HARDWARE, /* %SOF_TIMESTAMPING_SYS_HARDWARE */
 	SOCK_FASYNC, /* fasync() active */
 	SOCK_RXQ_OVFL,
+	SOCK_ZEROCOPY, /* buffers from userspace */
+	SOCK_WIFI_STATUS, /* push wifi status to userspace */
+	SOCK_NOFCS, /* Tell NIC not to do the Ethernet FCS.
+		     * Will use last 4 bytes of packet sent from
+		     * user-space instead.
+		     */
+	SOCK_FILTER_LOCKED, /* Filter cannot be changed anymore */
+	SOCK_SELECT_ERR_QUEUE, /* Wake select on error queue */
 };
 
 static inline void sock_copy_flags(struct sock *nsk, struct sock *osk)
@@ -693,6 +701,14 @@ static inline void sock_rps_save_rxhash(struct sock *sk, u32 rxhash)
 		sock_rps_reset_flow(sk);
 		sk->sk_rxhash = rxhash;
 	}
+#endif
+}
+
+static inline void sock_rps_reset_rxhash(struct sock *sk)
+{
+#ifdef CONFIG_RPS
+	sock_rps_reset_flow(sk);
+	sk->sk_rxhash = 0;
 #endif
 }
 
