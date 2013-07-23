@@ -1306,8 +1306,8 @@ static void __init zkpk_init(void)
     gpio_export(145, 1);
 
     gpio_request(139, "USB_RS_ON");
-    gpio_direction_output(139, 0);
-    gpio_set_value(139, 0);
+    gpio_direction_output(139, 1);
+    gpio_set_value(139, 1);
     gpio_export(139, 1);
 
     gpio_request(110, "X_BEE_WIFI_ON");
