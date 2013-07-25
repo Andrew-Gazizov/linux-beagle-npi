@@ -46,8 +46,13 @@ static const unsigned int fullscale_table[8] = {
 	6144, 4096, 2048, 1024, 512, 256, 256, 256 };
 
 /* Data rates in samples per second */
-static const unsigned int data_rate_table[8] = {
-	128, 250, 490, 920, 1600, 2400, 3300, 3300 };
+static const unsigned int data_rate_table_1015[8] = {
+	128, 250, 490, 920, 1600, 2400, 3300, 3300 
+};
+
+static const unsigned int data_rate_table_1115[8] = {
+	8, 16, 32, 64, 128, 250, 475, 860
+};
 
 #define ADS1015_DEFAULT_CHANNELS 0xff
 #define ADS1015_DEFAULT_PGA 2
@@ -57,6 +62,12 @@ struct ads1015_data {
 	struct device *hwmon_dev;
 	struct mutex update_lock; /* mutex protect updates */
 	struct ads1015_channel_data channel_data[ADS1015_CHANNELS];
+	int id;
+};
+
+enum ads1015_num_id {
+	ads1015,
+	ads1115,
 };
 
 static s32 ads1015_read_reg(struct i2c_client *client, unsigned int reg)
@@ -92,7 +103,10 @@ static int ads1015_read_value(struct i2c_client *client, unsigned int channel,
 		goto err_unlock;
 	config = res;
 	fullscale = fullscale_table[pga];
-	conversion_time_ms = DIV_ROUND_UP(1000, data_rate_table[data_rate]);
+	if (data->id == ads1115)
+		conversion_time_ms = DIV_ROUND_UP(1000, data_rate_table_1115[data_rate]);
+	else
+		conversion_time_ms = DIV_ROUND_UP(1000, data_rate_table_1015[data_rate]);
 
 	/* setup and start single conversion */
 	config &= 0x001f;
@@ -124,7 +138,10 @@ static int ads1015_read_value(struct i2c_client *client, unsigned int channel,
 
 	mutex_unlock(&data->update_lock);
 
-	*value = DIV_ROUND_CLOSEST(conversion * fullscale, 0x7ff0);
+	if (data->id == ads1115)
+		*value = DIV_ROUND_CLOSEST(conversion * fullscale, 0x7fff);
+	else
+		*value = DIV_ROUND_CLOSEST(conversion * fullscale, 0x7ff0);
 
 	return 0;
 
@@ -241,8 +258,10 @@ static void ads1015_get_channels_config(struct i2c_client *client)
 	struct ads1015_data *data = i2c_get_clientdata(client);
 	struct ads1015_platform_data *pdata = dev_get_platdata(&client->dev);
 
+	pr_debug("%s: begin, pdata %p\n", __func__, pdata);
 	/* prefer platform data */
 	if (pdata) {
+		pr_debug("%s: we use platform data\n", __func__);
 		memcpy(data->channel_data, pdata->channel_data,
 		       sizeof(data->channel_data));
 		return;
@@ -293,6 +312,9 @@ static int ads1015_probe(struct i2c_client *client,
 		goto exit_remove;
 	}
 
+	data->id = id->driver_data;
+	pr_debug("%s: id %d\n", __func__, data->id);
+
 	return 0;
 
 exit_remove:
@@ -304,7 +326,8 @@ exit:
 }
 
 static const struct i2c_device_id ads1015_id[] = {
-	{ "ads1015", 0 },
+	{ "ads1015",  ads1015},
+	{ "ads1115",  ads1115},
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, ads1015_id);
