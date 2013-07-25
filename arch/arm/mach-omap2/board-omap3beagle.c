@@ -56,6 +56,7 @@
 #include <plat/omap_device.h>
 #include <linux/spi/ads7846.h>
 #include <plat/mcspi.h>
+#include <linux/i2c/ads1015.h>
 
 #include "mux.h"
 #include "hsmmc.h"
@@ -365,6 +366,20 @@ static struct i2c_board_info __initdata pl_i2c_devices_boardinfo[] = {
     I2C_BOARD_INFO("ds1307", 0x68),
   }
 };
+
+static struct ads1015_platform_data ads1115_config_data = {
+	.channel_data[4] = { true, 0, 4 },
+	.channel_data[5] = { true, 2, 4 },
+	.channel_data[6] = { true, 2, 4 },
+};
+
+static struct i2c_board_info __initdata pl_i2c_devices_boardinfo2[] = {
+	{
+		I2C_BOARD_INFO("ads1115", 0x48),
+		.platform_data = &ads1115_config_data
+	}
+};
+
 /*
  * This device path represents the onboard USB <-> Ethernet bridge
  * on the BeagleBoard-xM which needs a random or all-zeros
@@ -1082,6 +1097,7 @@ static int __init omap3_beagle_i2c_init(void)
 	/* Bus 3 is attached to the DVI port where devices like the pico DLP
 	 * projector don't work reliably with 400kHz */
 	omap_register_i2c_bus(2, 100, pl_i2c_devices_boardinfo, ARRAY_SIZE(pl_i2c_devices_boardinfo));
+	omap_register_i2c_bus(3, 100, pl_i2c_devices_boardinfo2, ARRAY_SIZE(pl_i2c_devices_boardinfo2));
 	
 
 	return 0;
