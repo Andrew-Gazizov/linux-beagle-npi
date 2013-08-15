@@ -62,9 +62,10 @@
 /*
  * Device status
  */
-#define	DATA_READY  				0x01
-#define	DATA_OUTPUT_LOCK  			0x02
-#define	VOLTAGE_REGULATOR_ENABLED  		0x04
+#define HMC5843_DATA_READY			0x01
+#define HMC5843_DATA_OUTPUT_LOCK		0x02
+/* Does not exist on HMC5883, not used */
+#define HMC5843_VOLTAGE_REGULATOR_ENABLED	0x04
 
 /*
  * Mode register configuration
@@ -87,13 +88,13 @@
 #define	RATE_NOT_USED				0x07
 
 /*
- * Device Configutration
+ * Device measurement configuration
  */
-#define	CONF_NORMAL  				0x00
-#define	CONF_POSITIVE_BIAS			0x01
-#define	CONF_NEGATIVE_BIAS			0x02
-#define	CONF_NOT_USED				0x03
-#define	MEAS_CONF_MASK				0x03
+#define HMC5843_MEAS_CONF_NORMAL		0x00
+#define HMC5843_MEAS_CONF_POSITIVE_BIAS		0x01
+#define HMC5843_MEAS_CONF_NEGATIVE_BIAS		0x02
+#define HMC5843_MEAS_CONF_NOT_USED		0x03
+#define HMC5843_MEAS_CONF_MASK			0x03
 
 static const char *regval_to_scale[] = {
 	"0.0000006173",
@@ -165,7 +166,7 @@ static ssize_t hmc5843_read_measurement(struct device *dev,
 	mutex_lock(&data->lock);
 
 	result = i2c_smbus_read_byte_data(client, HMC5843_STATUS_REG);
-	while (!(result & DATA_READY))
+	while (!(result & HMC5843_DATA_READY))
 		result = i2c_smbus_read_byte_data(client, HMC5843_STATUS_REG);
 
 	result = i2c_smbus_read_word_data(client, this_attr->address);
@@ -269,7 +270,7 @@ static s32 hmc5843_set_meas_conf(struct i2c_client *client,
 {
 	struct hmc5843_data *data = i2c_get_clientdata(client);
 	u8 reg_val;
-	reg_val = (meas_conf & MEAS_CONF_MASK) |  (data->rate << RATE_OFFSET);
+	reg_val = (meas_conf & HMC5843_MEAS_CONF_MASK) |  (data->rate << RATE_OFFSET);
 	return i2c_smbus_write_byte_data(client, HMC5843_CONFIG_REG_A, reg_val);
 }
 
@@ -520,8 +521,7 @@ static int hmc5843_detect(struct i2c_client *client,
 /* Called when we have found a new HMC5843. */
 static void hmc5843_init_client(struct i2c_client *client)
 {
-	struct iio_dev *indio_dev = i2c_get_clientdata(client);
-	struct hmc5843_data *data = iio_priv(indio_dev);
+	struct hmc5843_data *data = i2c_get_clientdata(client);
 
 	hmc5843_set_meas_conf(client, data->meas_conf);
 	hmc5843_set_rate(client, data->rate);
@@ -550,20 +550,20 @@ static int hmc5843_probe(struct i2c_client *client,
 
 	/* default settings at probe */
 
-	data->meas_conf = CONF_NORMAL;
+	data->meas_conf = HMC5843_MEAS_CONF_NORMAL;
 	data->range = RANGE_1_0;
 	data->operating_mode = MODE_CONVERSION_CONTINUOUS;
 
 	i2c_set_clientdata(client, data);
-
-	/* Initialize the HMC5843 chip */
-	hmc5843_init_client(client);
 
 	data->indio_dev = iio_allocate_device(0);
 	if (!data->indio_dev) {
 		err = -ENOMEM;
 		goto exit_free1;
 	}
+	/* Initialize the HMC5843 chip */
+	hmc5843_init_client(client);
+
 	data->indio_dev->info = &hmc5843_info;
 	data->indio_dev->dev.parent = &client->dev;
 	data->indio_dev->dev_data = (void *)(data);
