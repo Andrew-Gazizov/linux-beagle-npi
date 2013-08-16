@@ -1285,21 +1285,6 @@ static void omap3_pl_poweroff(void)
 
 static void __init zkpk_init(void)
 {
-	static const int mygpio[] = {
-#if 0
-		98, 111, 162, 109, 15, 104, 106, 96, 103, 145, 97, 197,
-		108, 105, 136, 130, 139, 132, 133, 131, 101, 156, 95, 129, 137, 135, 134
-#else
-		145, 96, 97, 108, 110, 111
-#endif
-	};
-	int i;
-
-	for (i = 0; i < sizeof(mygpio) / sizeof(mygpio[0]); ++i) {
-		gpio_request(mygpio[i], "sysfs");
-		gpio_export(mygpio[i], 1);
-	}
-
   gpio_request(101, "SW_OSW_ZARA");
   gpio_direction_output(101, 0);
   gpio_set_value(101, 0);
@@ -1347,7 +1332,7 @@ static void __init zkpk_init(void)
     gpio_direction_output(157, 0);
     gpio_export(157, 1);
 
-    gpio_request(111, "USB_OTR_HOST_EN");
+    gpio_request(111, "USB_OTG_HOST_EN");
     gpio_direction_output(111, 0);
     gpio_export(111, 1);
   } else {
@@ -1389,9 +1374,12 @@ static void __init omap3_beagle_init(void)
 	/* TODO: set lcd_driver_name by command line or device tree */
 	beagle_config.lcd_driver_name = "tfc_s9700rtwv35tr-01b",
 	lcd_panel.name = beagle_config.lcd_driver_name;
-
-	platform_add_devices(omap3_beagle_devices,
-			ARRAY_SIZE(omap3_beagle_devices));
+	if (strcmp(motherb_name, "v4") == 0)
+		platform_add_devices(omap3_beagle_devices + 1,
+				     ARRAY_SIZE(omap3_beagle_devices) - 1);
+	else
+		platform_add_devices(omap3_beagle_devices,
+				     ARRAY_SIZE(omap3_beagle_devices));
 	omap_display_init(&beagle_dss_data);
 	omap_serial_init();
 
