@@ -363,7 +363,7 @@ static struct i2c_board_info __initdata pl_i2c_devices_boardinfo[] = {
 		I2C_BOARD_INFO("hmc5843", 0x1e),
 	},
   {
-    I2C_BOARD_INFO("ds1307", 0x68),
+    I2C_BOARD_INFO("ds3231", 0x68),
   }
 };
 
