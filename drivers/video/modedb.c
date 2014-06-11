@@ -664,7 +664,8 @@ done:
 	    memset(&cvt_mode, 0, sizeof(cvt_mode));
 	    cvt_mode.xres = xres;
 	    cvt_mode.yres = yres;
-	    cvt_mode.refresh = (refresh) ? refresh : 60;
+        cvt_mode.refresh = (refresh) ? refresh : 60;
+
 
 	    if (interlace)
 		cvt_mode.vmode |= FB_VMODE_INTERLACED;

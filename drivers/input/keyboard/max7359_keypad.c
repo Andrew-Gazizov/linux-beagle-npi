@@ -229,7 +229,7 @@ static DEVICE_ATTR(portgpo, S_IRUGO | S_IWUSR, max7359_port_gpo_show, max7359_po
 static int __devinit max7359_probe(struct i2c_client *client,
 					const struct i2c_device_id *id)
 {
-	struct max7359_platform_data *pdata = client->dev.platform_data;
+    struct max7359_platform_data *pdata = client->dev.platform_data;
 	const struct matrix_keymap_data *keymap_data = pdata->keymap_data;
 	struct max7359_keypad *keypad;
 	struct input_dev *input_dev;

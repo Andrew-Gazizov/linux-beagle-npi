@@ -304,7 +304,7 @@ int __init omap3_twl_init(void)
 	 * the voltage scaling through vp forceupdate/bypass mechanism of
 	 * voltage scaling will not function on TWL over I2C_SR.
 	 */
-	if (!twl_sr_enable_autoinit)
+//	if (!twl_sr_enable_autoinit)
 		omap3_twl_set_sr_bit(true);
 
 	voltdm = voltdm_lookup("mpu_iva");
@@ -352,6 +352,14 @@ int __init omap3_twl_set_sr_bit(bool enable)
 		twl_sr_enable_autoinit = true;
 		return 0;
 	}
+
+    ret = twl_i2c_read_u8(TWL4030_MODULE_PM_RECEIVER, &temp, 0x60);
+    printk("%s 0x60 ret=%d\n", __func__, ret);
+    ret = twl_i2c_read_u8(TWL4030_MODULE_PM_RECEIVER, &temp, 0x61);
+    printk("%s 0x61 ret=%d\n", __func__, ret);
+
+//    twl_i2c_write_u8(TWL4030_MODULE_PM_RECEIVER, temp, 0x60);
+
 err:
 	pr_err("%s: Error access to TWL4030 (%d)\n", __func__, ret);
 	return ret;

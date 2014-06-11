@@ -200,7 +200,7 @@ ENTRY(omap34xx_cpu_suspend)
 
 	/* Directly jump to WFI is the context save is not required */
 	cmp	r1, #0x0
-	beq	omap3_do_wfi
+    beq	omap3_do_wfi
 
 	/* Otherwise fall through to the save context code */
 save_context_wfi:
@@ -299,13 +299,15 @@ omap3_do_wfi:
  * == WFI instruction => Enter idle ==
  * ===================================
  */
-	wfi				@ wait for interrupt
+    wfi				@ wait for interrupt
 
 /*
  * ===================================
  * == Resume path for non-OFF modes ==
  * ===================================
  */
+loop:
+    nop
 	nop
 	nop
 	nop
@@ -314,8 +316,8 @@ omap3_do_wfi:
 	nop
 	nop
 	nop
-	nop
-	nop
+    nop
+    b loop
 	bl wait_sdrc_ok
 
 	mrc	p15, 0, r0, c1, c0, 0
@@ -393,6 +395,7 @@ restore:
 	cmp	r2, #0x0	@ Check if target power state was OFF or RET
 	moveq	r9, #0x3	@ MPU OFF => L1 and L2 lost
 	movne	r9, #0x1	@ Only L1 and L2 lost => avoid L2 invalidation
+    //beq restore
 	bne	logic_l1_restore
 
 	ldr	r0, l2dis_3630

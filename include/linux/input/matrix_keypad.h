@@ -100,7 +100,7 @@ matrix_keypad_build_keymap(const struct matrix_keymap_data *keymap_data,
 		unsigned int col = KEY_COL(key);
 		unsigned short code = KEY_VAL(key);
 
-		keymap[MATRIX_SCAN_CODE(row, col, row_shift)] = code;
+        keymap[MATRIX_SCAN_CODE(row, col, row_shift)] = code;
 		__set_bit(code, keybit);
 	}
 	__clear_bit(KEY_RESERVED, keybit);

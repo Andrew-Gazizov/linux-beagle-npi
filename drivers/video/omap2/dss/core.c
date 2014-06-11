@@ -292,14 +292,18 @@ static void omap_dss_shutdown(struct platform_device *pdev)
 
 static int omap_dss_suspend(struct platform_device *pdev, pm_message_t state)
 {
+    printk(KERN_INFO "omap_dss_suspend");
 	DSSDBG("suspend %d\n", state.event);
+
+   // dss_save_context();
 
 	return dss_suspend_all_devices();
 }
 
 static int omap_dss_resume(struct platform_device *pdev)
 {
-	DSSDBG("resume\n");
+    printk(KERN_INFO "omap_dss_resume");
+    DSSDBG("resume\n");
 
 	return dss_resume_all_devices();
 }

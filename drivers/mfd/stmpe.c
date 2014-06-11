@@ -14,90 +14,91 @@
 #include <linux/mfd/core.h>
 #include <linux/mfd/stmpe.h>
 #include "stmpe.h"
+#include "stmpe_incl.h"
 
 static int __stmpe_enable(struct stmpe *stmpe, unsigned int blocks)
 {
-	return stmpe->variant->enable(stmpe, blocks, true);
+    return stmpe->variant->enable(stmpe, blocks, true);
 }
 
 static int __stmpe_disable(struct stmpe *stmpe, unsigned int blocks)
 {
-	return stmpe->variant->enable(stmpe, blocks, false);
+    return stmpe->variant->enable(stmpe, blocks, false);
 }
 
 static int __stmpe_reg_read(struct stmpe *stmpe, u8 reg)
 {
-	int ret;
+    int ret;
 
-	ret = i2c_smbus_read_byte_data(stmpe->i2c, reg);
-	if (ret < 0)
-		dev_err(stmpe->dev, "failed to read reg %#x: %d\n",
-			reg, ret);
+    ret = i2c_smbus_read_byte_data(stmpe->i2c, reg);
+    if (ret < 0)
+        dev_err(stmpe->dev, "failed to read reg %#x: %d\n",
+                reg, ret);
 
-	dev_vdbg(stmpe->dev, "rd: reg %#x => data %#x\n", reg, ret);
+    dev_vdbg(stmpe->dev, "rd: reg %#x => data %#x\n", reg, ret);
 
-	return ret;
+    return ret;
 }
 
 static int __stmpe_reg_write(struct stmpe *stmpe, u8 reg, u8 val)
 {
-	int ret;
+    int ret;
 
-	dev_vdbg(stmpe->dev, "wr: reg %#x <= %#x\n", reg, val);
+    dev_vdbg(stmpe->dev, "wr: reg %#x <= %#x\n", reg, val);
 
-	ret = i2c_smbus_write_byte_data(stmpe->i2c, reg, val);
-	if (ret < 0)
-		dev_err(stmpe->dev, "failed to write reg %#x: %d\n",
-			reg, ret);
+    ret = i2c_smbus_write_byte_data(stmpe->i2c, reg, val);
+    if (ret < 0)
+        dev_err(stmpe->dev, "failed to write reg %#x: %d\n",
+                reg, ret);
 
-	return ret;
+    return ret;
 }
 
 static int __stmpe_set_bits(struct stmpe *stmpe, u8 reg, u8 mask, u8 val)
 {
-	int ret;
+    int ret;
 
-	ret = __stmpe_reg_read(stmpe, reg);
-	if (ret < 0)
-		return ret;
+    ret = __stmpe_reg_read(stmpe, reg);
+    if (ret < 0)
+        return ret;
 
-	ret &= ~mask;
-	ret |= val;
+    ret &= ~mask;
+    ret |= val;
 
-	return __stmpe_reg_write(stmpe, reg, ret);
+    return __stmpe_reg_write(stmpe, reg, ret);
 }
 
 static int __stmpe_block_read(struct stmpe *stmpe, u8 reg, u8 length,
-			      u8 *values)
+                              u8 *values)
 {
-	int ret;
+    int ret;
 
-	ret = i2c_smbus_read_i2c_block_data(stmpe->i2c, reg, length, values);
-	if (ret < 0)
-		dev_err(stmpe->dev, "failed to read regs %#x: %d\n",
-			reg, ret);
+    ret = i2c_smbus_read_i2c_block_data(stmpe->i2c, reg, length, values);
+    if (ret < 0)
+        dev_err(stmpe->dev, "failed to read regs %#x: %d\n",
+                reg, ret);
 
-	dev_vdbg(stmpe->dev, "rd: reg %#x (%d) => ret %#x\n", reg, length, ret);
-	stmpe_dump_bytes("stmpe rd: ", values, length);
+    dev_vdbg(stmpe->dev, "rd: reg %#x (%d) => ret %#x\n", reg, length, ret);
+    stmpe_dump_bytes("stmpe rd: ", values, length);
 
-	return ret;
+    return ret;
 }
 
 static int __stmpe_block_write(struct stmpe *stmpe, u8 reg, u8 length,
-			const u8 *values)
+                               const u8 *values)
 {
-	int ret;
+    int ret;
 
-	dev_vdbg(stmpe->dev, "wr: regs %#x (%d)\n", reg, length);
-	stmpe_dump_bytes("stmpe wr: ", values, length);
+    dev_vdbg(stmpe->dev, "wr: regs %#x (%d)\n", reg, length);
+    stmpe_dump_bytes("stmpe wr: ", values, length);
 
-	ret = i2c_smbus_write_i2c_block_data(stmpe->i2c, reg, length,
-					     values);
-	if (ret < 0)
-		dev_err(stmpe->dev, "failed to write regs %#x: %d\n",
-			reg, ret);
+    ret = i2c_smbus_write_i2c_block_data(stmpe->i2c, reg, length,
+                                         values);
+    if (ret < 0)
+        dev_err(stmpe->dev, "failed to write regs %#x: %d\n",
+                reg, ret);
 
-	return ret;
+    return ret;
 }
 
 /**
@@ -107,13 +108,13 @@ static int __stmpe_block_write(struct stmpe *stmpe, u8 reg, u8 length,
  */
 int stmpe_enable(struct stmpe *stmpe, unsigned int blocks)
 {
-	int ret;
+    int ret;
 
-	mutex_lock(&stmpe->lock);
-	ret = __stmpe_enable(stmpe, blocks);
-	mutex_unlock(&stmpe->lock);
+    mutex_lock(&stmpe->lock);
+    ret = __stmpe_enable(stmpe, blocks);
+    mutex_unlock(&stmpe->lock);
 
-	return ret;
+    return ret;
 }
 EXPORT_SYMBOL_GPL(stmpe_enable);
 
@@ -124,13 +125,13 @@ EXPORT_SYMBOL_GPL(stmpe_enable);
  */
 int stmpe_disable(struct stmpe *stmpe, unsigned int blocks)
 {
-	int ret;
+    int ret;
 
-	mutex_lock(&stmpe->lock);
-	ret = __stmpe_disable(stmpe, blocks);
-	mutex_unlock(&stmpe->lock);
+    mutex_lock(&stmpe->lock);
+    ret = __stmpe_disable(stmpe, blocks);
+    mutex_unlock(&stmpe->lock);
 
-	return ret;
+    return ret;
 }
 EXPORT_SYMBOL_GPL(stmpe_disable);
 
@@ -141,13 +142,13 @@ EXPORT_SYMBOL_GPL(stmpe_disable);
  */
 int stmpe_reg_read(struct stmpe *stmpe, u8 reg)
 {
-	int ret;
+    int ret;
 
-	mutex_lock(&stmpe->lock);
-	ret = __stmpe_reg_read(stmpe, reg);
-	mutex_unlock(&stmpe->lock);
+    mutex_lock(&stmpe->lock);
+    ret = __stmpe_reg_read(stmpe, reg);
+    mutex_unlock(&stmpe->lock);
 
-	return ret;
+    return ret;
 }
 EXPORT_SYMBOL_GPL(stmpe_reg_read);
 
@@ -159,13 +160,13 @@ EXPORT_SYMBOL_GPL(stmpe_reg_read);
  */
 int stmpe_reg_write(struct stmpe *stmpe, u8 reg, u8 val)
 {
-	int ret;
+    int ret;
 
-	mutex_lock(&stmpe->lock);
-	ret = __stmpe_reg_write(stmpe, reg, val);
-	mutex_unlock(&stmpe->lock);
+    mutex_lock(&stmpe->lock);
+    ret = __stmpe_reg_write(stmpe, reg, val);
+    mutex_unlock(&stmpe->lock);
 
-	return ret;
+    return ret;
 }
 EXPORT_SYMBOL_GPL(stmpe_reg_write);
 
@@ -178,13 +179,13 @@ EXPORT_SYMBOL_GPL(stmpe_reg_write);
  */
 int stmpe_set_bits(struct stmpe *stmpe, u8 reg, u8 mask, u8 val)
 {
-	int ret;
+    int ret;
 
-	mutex_lock(&stmpe->lock);
-	ret = __stmpe_set_bits(stmpe, reg, mask, val);
-	mutex_unlock(&stmpe->lock);
+    mutex_lock(&stmpe->lock);
+    ret = __stmpe_set_bits(stmpe, reg, mask, val);
+    mutex_unlock(&stmpe->lock);
 
-	return ret;
+    return ret;
 }
 EXPORT_SYMBOL_GPL(stmpe_set_bits);
 
@@ -197,13 +198,13 @@ EXPORT_SYMBOL_GPL(stmpe_set_bits);
  */
 int stmpe_block_read(struct stmpe *stmpe, u8 reg, u8 length, u8 *values)
 {
-	int ret;
+    int ret;
 
-	mutex_lock(&stmpe->lock);
-	ret = __stmpe_block_read(stmpe, reg, length, values);
-	mutex_unlock(&stmpe->lock);
+    mutex_lock(&stmpe->lock);
+    ret = __stmpe_block_read(stmpe, reg, length, values);
+    mutex_unlock(&stmpe->lock);
 
-	return ret;
+    return ret;
 }
 EXPORT_SYMBOL_GPL(stmpe_block_read);
 
@@ -215,15 +216,15 @@ EXPORT_SYMBOL_GPL(stmpe_block_read);
  * @values:	Values to write
  */
 int stmpe_block_write(struct stmpe *stmpe, u8 reg, u8 length,
-		      const u8 *values)
+                      const u8 *values)
 {
-	int ret;
+    int ret;
 
-	mutex_lock(&stmpe->lock);
-	ret = __stmpe_block_write(stmpe, reg, length, values);
-	mutex_unlock(&stmpe->lock);
+    mutex_lock(&stmpe->lock);
+    ret = __stmpe_block_write(stmpe, reg, length, values);
+    mutex_unlock(&stmpe->lock);
 
-	return ret;
+    return ret;
 }
 EXPORT_SYMBOL_GPL(stmpe_block_write);
 
@@ -241,44 +242,44 @@ EXPORT_SYMBOL_GPL(stmpe_block_write);
  */
 int stmpe_set_altfunc(struct stmpe *stmpe, u32 pins, enum stmpe_block block)
 {
-	struct stmpe_variant_info *variant = stmpe->variant;
-	u8 regaddr = stmpe->regs[STMPE_IDX_GPAFR_U_MSB];
-	int af_bits = variant->af_bits;
-	int numregs = DIV_ROUND_UP(stmpe->num_gpios * af_bits, 8);
-	int afperreg = 8 / af_bits;
-	int mask = (1 << af_bits) - 1;
-	u8 regs[numregs];
-	int af;
-	int ret;
+    struct stmpe_variant_info *variant = stmpe->variant;
+    u8 regaddr = stmpe->regs[STMPE_IDX_GPAFR_U_MSB];
+    int af_bits = variant->af_bits;
+    int numregs = DIV_ROUND_UP(stmpe->num_gpios * af_bits, 8);
+    int afperreg = 8 / af_bits;
+    int mask = (1 << af_bits) - 1;
+    u8 regs[numregs];
+    int af;
+    int ret;
 
-	mutex_lock(&stmpe->lock);
+    mutex_lock(&stmpe->lock);
 
-	ret = __stmpe_enable(stmpe, STMPE_BLOCK_GPIO);
-	if (ret < 0)
-		goto out;
+    ret = __stmpe_enable(stmpe, STMPE_BLOCK_GPIO);
+    if (ret < 0)
+        goto out;
 
-	ret = __stmpe_block_read(stmpe, regaddr, numregs, regs);
-	if (ret < 0)
-		goto out;
+    ret = __stmpe_block_read(stmpe, regaddr, numregs, regs);
+    if (ret < 0)
+        goto out;
 
-	af = variant->get_altfunc(stmpe, block);
+    af = variant->get_altfunc(stmpe, block);
 
-	while (pins) {
-		int pin = __ffs(pins);
-		int regoffset = numregs - (pin / afperreg) - 1;
-		int pos = (pin % afperreg) * (8 / afperreg);
+    while (pins) {
+        int pin = __ffs(pins);
+        int regoffset = numregs - (pin / afperreg) - 1;
+        int pos = (pin % afperreg) * (8 / afperreg);
 
-		regs[regoffset] &= ~(mask << pos);
-		regs[regoffset] |= af << pos;
+        regs[regoffset] &= ~(mask << pos);
+        regs[regoffset] |= af << pos;
 
-		pins &= ~(1 << pin);
-	}
+        pins &= ~(1 << pin);
+    }
 
-	ret = __stmpe_block_write(stmpe, regaddr, numregs, regs);
+    ret = __stmpe_block_write(stmpe, regaddr, numregs, regs);
 
 out:
-	mutex_unlock(&stmpe->lock);
-	return ret;
+    mutex_unlock(&stmpe->lock);
+    return ret;
 }
 EXPORT_SYMBOL_GPL(stmpe_set_altfunc);
 
@@ -287,16 +288,16 @@ EXPORT_SYMBOL_GPL(stmpe_set_altfunc);
  */
 
 static struct resource stmpe_gpio_resources[] = {
-	/* Start and end filled dynamically */
-	{
-		.flags	= IORESOURCE_IRQ,
-	},
+    /* Start and end filled dynamically */
+    {
+        .flags	= IORESOURCE_IRQ,
+    },
 };
 
 static struct mfd_cell stmpe_gpio_cell = {
-	.name		= "stmpe-gpio",
-	.resources	= stmpe_gpio_resources,
-	.num_resources	= ARRAY_SIZE(stmpe_gpio_resources),
+    .name		= "stmpe-gpio",
+    .resources	= stmpe_gpio_resources,
+    .num_resources	= ARRAY_SIZE(stmpe_gpio_resources),
 };
 
 /*
@@ -304,24 +305,24 @@ static struct mfd_cell stmpe_gpio_cell = {
  */
 
 static struct resource stmpe_keypad_resources[] = {
-	{
-		.name	= "KEYPAD",
-		.start	= 0,
-		.end	= 0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	{
-		.name	= "KEYPAD_OVER",
-		.start	= 1,
-		.end	= 1,
-		.flags	= IORESOURCE_IRQ,
-	},
+    {
+        .name	= "KEYPAD",
+        .start	= 0,
+        .end	= 0,
+        .flags	= IORESOURCE_IRQ,
+    },
+    {
+        .name	= "KEYPAD_OVER",
+        .start	= 1,
+        .end	= 1,
+        .flags	= IORESOURCE_IRQ,
+    },
 };
 
 static struct mfd_cell stmpe_keypad_cell = {
-	.name		= "stmpe-keypad",
-	.resources	= stmpe_keypad_resources,
-	.num_resources	= ARRAY_SIZE(stmpe_keypad_resources),
+    .name		= "stmpe-keypad",
+    .resources	= stmpe_keypad_resources,
+    .num_resources	= ARRAY_SIZE(stmpe_keypad_resources),
 };
 
 /*
@@ -329,24 +330,24 @@ static struct mfd_cell stmpe_keypad_cell = {
  */
 
 static struct resource stmpe_ts_resources[] = {
-	{
-		.name	= "TOUCH_DET",
-		.start	= 0,
-		.end	= 0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	{
-		.name	= "FIFO_TH",
-		.start	= 1,
-		.end	= 1,
-		.flags	= IORESOURCE_IRQ,
-	},
+    {
+        .name	= "TOUCH_DET",
+        .start	= 0,
+        .end	= 0,
+        .flags	= IORESOURCE_IRQ,
+    },
+    {
+        .name	= "FIFO_TH",
+        .start	= 1,
+        .end	= 1,
+        .flags	= IORESOURCE_IRQ,
+    },
 };
 
 static struct mfd_cell stmpe_ts_cell = {
-	.name		= "stmpe-ts",
-	.resources	= stmpe_ts_resources,
-	.num_resources	= ARRAY_SIZE(stmpe_ts_resources),
+    .name		= "stmpe-ts",
+    .resources	= stmpe_ts_resources,
+    .num_resources	= ARRAY_SIZE(stmpe_ts_resources),
 };
 
 /*
@@ -354,71 +355,79 @@ static struct mfd_cell stmpe_ts_cell = {
  */
 
 static const u8 stmpe811_regs[] = {
-	[STMPE_IDX_CHIP_ID]	= STMPE811_REG_CHIP_ID,
-	[STMPE_IDX_ICR_LSB]	= STMPE811_REG_INT_CTRL,
-	[STMPE_IDX_IER_LSB]	= STMPE811_REG_INT_EN,
-	[STMPE_IDX_ISR_MSB]	= STMPE811_REG_INT_STA,
-	[STMPE_IDX_GPMR_LSB]	= STMPE811_REG_GPIO_MP_STA,
-	[STMPE_IDX_GPSR_LSB]	= STMPE811_REG_GPIO_SET_PIN,
-	[STMPE_IDX_GPCR_LSB]	= STMPE811_REG_GPIO_CLR_PIN,
-	[STMPE_IDX_GPDR_LSB]	= STMPE811_REG_GPIO_DIR,
-	[STMPE_IDX_GPRER_LSB]	= STMPE811_REG_GPIO_RE,
-	[STMPE_IDX_GPFER_LSB]	= STMPE811_REG_GPIO_FE,
-	[STMPE_IDX_GPAFR_U_MSB]	= STMPE811_REG_GPIO_AF,
-	[STMPE_IDX_IEGPIOR_LSB]	= STMPE811_REG_GPIO_INT_EN,
-	[STMPE_IDX_ISGPIOR_MSB]	= STMPE811_REG_GPIO_INT_STA,
-	[STMPE_IDX_GPEDR_MSB]	= STMPE811_REG_GPIO_ED,
+    [STMPE_IDX_CHIP_ID]	= STMPE811_REG_CHIP_ID,
+    [STMPE_IDX_ICR_LSB]	= STMPE811_REG_INT_CTRL,
+    [STMPE_IDX_IER_LSB]	= STMPE811_REG_INT_EN,
+    [STMPE_IDX_ISR_MSB]	= STMPE811_REG_INT_STA,
+    [STMPE_IDX_GPMR_LSB]	= STMPE811_REG_GPIO_MP_STA,
+    [STMPE_IDX_GPSR_LSB]	= STMPE811_REG_GPIO_SET_PIN,
+    [STMPE_IDX_GPCR_LSB]	= STMPE811_REG_GPIO_CLR_PIN,
+    [STMPE_IDX_GPDR_LSB]	= STMPE811_REG_GPIO_DIR,
+    [STMPE_IDX_GPRER_LSB]	= STMPE811_REG_GPIO_RE,
+    [STMPE_IDX_GPFER_LSB]	= STMPE811_REG_GPIO_FE,
+    [STMPE_IDX_GPAFR_U_MSB]	= STMPE811_REG_GPIO_AF,
+    [STMPE_IDX_IEGPIOR_LSB]	= STMPE811_REG_GPIO_INT_EN,
+    [STMPE_IDX_ISGPIOR_MSB]	= STMPE811_REG_GPIO_INT_STA,
+    [STMPE_IDX_GPEDR_MSB]	= STMPE811_REG_GPIO_ED,
 };
 
 static struct stmpe_variant_block stmpe811_blocks[] = {
-	{
-		.cell	= &stmpe_gpio_cell,
-		.irq	= STMPE811_IRQ_GPIOC,
-		.block	= STMPE_BLOCK_GPIO,
-	},
-	{
-		.cell	= &stmpe_ts_cell,
-		.irq	= STMPE811_IRQ_TOUCH_DET,
-		.block	= STMPE_BLOCK_TOUCHSCREEN,
-	},
+    {
+        .cell	= &stmpe_gpio_cell,
+        .irq	= STMPE811_IRQ_GPIOC,
+        .block	= STMPE_BLOCK_GPIO,
+    },
+    {
+        .cell	= &stmpe_ts_cell,
+        .irq	= STMPE811_IRQ_TOUCH_DET,
+        .block	= STMPE_BLOCK_TOUCHSCREEN,
+    },
 };
+#include <linux/delay.h>
 
 static int stmpe811_enable(struct stmpe *stmpe, unsigned int blocks,
-			   bool enable)
+                           bool enable)
 {
-	unsigned int mask = 0;
 
-	if (blocks & STMPE_BLOCK_GPIO)
-		mask |= STMPE811_SYS_CTRL2_GPIO_OFF;
+    unsigned int mask = 0;
 
-	if (blocks & STMPE_BLOCK_ADC)
-		mask |= STMPE811_SYS_CTRL2_ADC_OFF;
+    if (blocks & STMPE_BLOCK_GPIO)
+        mask |= STMPE811_SYS_CTRL2_GPIO_OFF;
 
-	if (blocks & STMPE_BLOCK_TOUCHSCREEN)
-		mask |= STMPE811_SYS_CTRL2_TSC_OFF;
+    if (blocks & STMPE_BLOCK_ADC)
+        mask |= STMPE811_SYS_CTRL2_ADC_OFF;
 
-	return __stmpe_set_bits(stmpe, STMPE811_REG_SYS_CTRL2, mask,
-				enable ? 0 : mask);
+    if (blocks & STMPE_BLOCK_TOUCHSCREEN)
+        mask |= STMPE811_SYS_CTRL2_TSC_OFF;
+
+//    __stmpe_set_bits(stmpe, STMPE811_REG_SYS_CTRL, 1, 0x02);
+
+    // Wait minumum of 10ms.
+
+    //    udelay(18000);
+
+    return __stmpe_set_bits(stmpe, STMPE811_REG_SYS_CTRL2, mask,
+                            enable ? 0 : mask);
 }
 
 static int stmpe811_get_altfunc(struct stmpe *stmpe, enum stmpe_block block)
 {
-	/* 0 for touchscreen, 1 for GPIO */
-	return block != STMPE_BLOCK_TOUCHSCREEN;
+    /* 0 for touchscreen, 1 for GPIO */
+    return block != STMPE_BLOCK_TOUCHSCREEN;
 }
 
 static struct stmpe_variant_info stmpe811 = {
-	.name		= "stmpe811",
-	.id_val		= 0x0811,
-	.id_mask	= 0xffff,
-	.num_gpios	= 8,
-	.af_bits	= 1,
-	.regs		= stmpe811_regs,
-	.blocks		= stmpe811_blocks,
-	.num_blocks	= ARRAY_SIZE(stmpe811_blocks),
-	.num_irqs	= STMPE811_NR_INTERNAL_IRQS,
-	.enable		= stmpe811_enable,
-	.get_altfunc	= stmpe811_get_altfunc,
+    .name		= "stmpe811",
+    .id_val		= 0x0811,
+    .id_mask	= 0xffff,
+    .num_gpios	= 8,
+    .af_bits	= 1,
+    .regs		= stmpe811_regs,
+    .blocks		= stmpe811_blocks,
+    .num_blocks	= ARRAY_SIZE(stmpe811_blocks),
+    .num_irqs	= STMPE811_NR_INTERNAL_IRQS,
+    .enable		= stmpe811_enable,
+    .get_altfunc	= stmpe811_get_altfunc,
 };
 
 /*
@@ -426,139 +435,139 @@ static struct stmpe_variant_info stmpe811 = {
  */
 
 static const u8 stmpe1601_regs[] = {
-	[STMPE_IDX_CHIP_ID]	= STMPE1601_REG_CHIP_ID,
-	[STMPE_IDX_ICR_LSB]	= STMPE1601_REG_ICR_LSB,
-	[STMPE_IDX_IER_LSB]	= STMPE1601_REG_IER_LSB,
-	[STMPE_IDX_ISR_MSB]	= STMPE1601_REG_ISR_MSB,
-	[STMPE_IDX_GPMR_LSB]	= STMPE1601_REG_GPIO_MP_LSB,
-	[STMPE_IDX_GPSR_LSB]	= STMPE1601_REG_GPIO_SET_LSB,
-	[STMPE_IDX_GPCR_LSB]	= STMPE1601_REG_GPIO_CLR_LSB,
-	[STMPE_IDX_GPDR_LSB]	= STMPE1601_REG_GPIO_SET_DIR_LSB,
-	[STMPE_IDX_GPRER_LSB]	= STMPE1601_REG_GPIO_RE_LSB,
-	[STMPE_IDX_GPFER_LSB]	= STMPE1601_REG_GPIO_FE_LSB,
-	[STMPE_IDX_GPAFR_U_MSB]	= STMPE1601_REG_GPIO_AF_U_MSB,
-	[STMPE_IDX_IEGPIOR_LSB]	= STMPE1601_REG_INT_EN_GPIO_MASK_LSB,
-	[STMPE_IDX_ISGPIOR_MSB]	= STMPE1601_REG_INT_STA_GPIO_MSB,
-	[STMPE_IDX_GPEDR_MSB]	= STMPE1601_REG_GPIO_ED_MSB,
+    [STMPE_IDX_CHIP_ID]	= STMPE1601_REG_CHIP_ID,
+    [STMPE_IDX_ICR_LSB]	= STMPE1601_REG_ICR_LSB,
+    [STMPE_IDX_IER_LSB]	= STMPE1601_REG_IER_LSB,
+    [STMPE_IDX_ISR_MSB]	= STMPE1601_REG_ISR_MSB,
+    [STMPE_IDX_GPMR_LSB]	= STMPE1601_REG_GPIO_MP_LSB,
+    [STMPE_IDX_GPSR_LSB]	= STMPE1601_REG_GPIO_SET_LSB,
+    [STMPE_IDX_GPCR_LSB]	= STMPE1601_REG_GPIO_CLR_LSB,
+    [STMPE_IDX_GPDR_LSB]	= STMPE1601_REG_GPIO_SET_DIR_LSB,
+    [STMPE_IDX_GPRER_LSB]	= STMPE1601_REG_GPIO_RE_LSB,
+    [STMPE_IDX_GPFER_LSB]	= STMPE1601_REG_GPIO_FE_LSB,
+    [STMPE_IDX_GPAFR_U_MSB]	= STMPE1601_REG_GPIO_AF_U_MSB,
+    [STMPE_IDX_IEGPIOR_LSB]	= STMPE1601_REG_INT_EN_GPIO_MASK_LSB,
+    [STMPE_IDX_ISGPIOR_MSB]	= STMPE1601_REG_INT_STA_GPIO_MSB,
+    [STMPE_IDX_GPEDR_MSB]	= STMPE1601_REG_GPIO_ED_MSB,
 };
 
 static struct stmpe_variant_block stmpe1601_blocks[] = {
-	{
-		.cell	= &stmpe_gpio_cell,
-		.irq	= STMPE24XX_IRQ_GPIOC,
-		.block	= STMPE_BLOCK_GPIO,
-	},
-	{
-		.cell	= &stmpe_keypad_cell,
-		.irq	= STMPE24XX_IRQ_KEYPAD,
-		.block	= STMPE_BLOCK_KEYPAD,
-	},
+    {
+        .cell	= &stmpe_gpio_cell,
+        .irq	= STMPE24XX_IRQ_GPIOC,
+        .block	= STMPE_BLOCK_GPIO,
+    },
+    {
+        .cell	= &stmpe_keypad_cell,
+        .irq	= STMPE24XX_IRQ_KEYPAD,
+        .block	= STMPE_BLOCK_KEYPAD,
+    },
 };
 
 /* supported autosleep timeout delay (in msecs) */
 static const int stmpe_autosleep_delay[] = {
-	4, 16, 32, 64, 128, 256, 512, 1024,
+    4, 16, 32, 64, 128, 256, 512, 1024,
 };
 
 static int stmpe_round_timeout(int timeout)
 {
-	int i;
+    int i;
 
-	for (i = 0; i < ARRAY_SIZE(stmpe_autosleep_delay); i++) {
-		if (stmpe_autosleep_delay[i] >= timeout)
-			return i;
-	}
+    for (i = 0; i < ARRAY_SIZE(stmpe_autosleep_delay); i++) {
+        if (stmpe_autosleep_delay[i] >= timeout)
+            return i;
+    }
 
-	/*
-	 * requests for delays longer than supported should not return the
-	 * longest supported delay
-	 */
-	return -EINVAL;
+    /*
+     * requests for delays longer than supported should not return the
+     * longest supported delay
+     */
+    return -EINVAL;
 }
 
 static int stmpe_autosleep(struct stmpe *stmpe, int autosleep_timeout)
 {
-	int ret;
+    int ret;
 
-	if (!stmpe->variant->enable_autosleep)
-		return -ENOSYS;
+    if (!stmpe->variant->enable_autosleep)
+        return -ENOSYS;
 
-	mutex_lock(&stmpe->lock);
-	ret = stmpe->variant->enable_autosleep(stmpe, autosleep_timeout);
-	mutex_unlock(&stmpe->lock);
+    mutex_lock(&stmpe->lock);
+    ret = stmpe->variant->enable_autosleep(stmpe, autosleep_timeout);
+    mutex_unlock(&stmpe->lock);
 
-	return ret;
+    return ret;
 }
 
 /*
  * Both stmpe 1601/2403 support same layout for autosleep
  */
 static int stmpe1601_autosleep(struct stmpe *stmpe,
-		int autosleep_timeout)
+                               int autosleep_timeout)
 {
-	int ret, timeout;
+    int ret, timeout;
 
-	/* choose the best available timeout */
-	timeout = stmpe_round_timeout(autosleep_timeout);
-	if (timeout < 0) {
-		dev_err(stmpe->dev, "invalid timeout\n");
-		return timeout;
-	}
+    /* choose the best available timeout */
+    timeout = stmpe_round_timeout(autosleep_timeout);
+    if (timeout < 0) {
+        dev_err(stmpe->dev, "invalid timeout\n");
+        return timeout;
+    }
 
-	ret = __stmpe_set_bits(stmpe, STMPE1601_REG_SYS_CTRL2,
-			STMPE1601_AUTOSLEEP_TIMEOUT_MASK,
-			timeout);
-	if (ret < 0)
-		return ret;
+    ret = __stmpe_set_bits(stmpe, STMPE1601_REG_SYS_CTRL2,
+                           STMPE1601_AUTOSLEEP_TIMEOUT_MASK,
+                           timeout);
+    if (ret < 0)
+        return ret;
 
-	return __stmpe_set_bits(stmpe, STMPE1601_REG_SYS_CTRL2,
-			STPME1601_AUTOSLEEP_ENABLE,
-			STPME1601_AUTOSLEEP_ENABLE);
+    return __stmpe_set_bits(stmpe, STMPE1601_REG_SYS_CTRL2,
+                            STPME1601_AUTOSLEEP_ENABLE,
+                            STPME1601_AUTOSLEEP_ENABLE);
 }
 
 static int stmpe1601_enable(struct stmpe *stmpe, unsigned int blocks,
-			    bool enable)
+                            bool enable)
 {
-	unsigned int mask = 0;
+    unsigned int mask = 0;
 
-	if (blocks & STMPE_BLOCK_GPIO)
-		mask |= STMPE1601_SYS_CTRL_ENABLE_GPIO;
+    if (blocks & STMPE_BLOCK_GPIO)
+        mask |= STMPE1601_SYS_CTRL_ENABLE_GPIO;
 
-	if (blocks & STMPE_BLOCK_KEYPAD)
-		mask |= STMPE1601_SYS_CTRL_ENABLE_KPC;
+    if (blocks & STMPE_BLOCK_KEYPAD)
+        mask |= STMPE1601_SYS_CTRL_ENABLE_KPC;
 
-	return __stmpe_set_bits(stmpe, STMPE1601_REG_SYS_CTRL, mask,
-				enable ? mask : 0);
+    return __stmpe_set_bits(stmpe, STMPE1601_REG_SYS_CTRL, mask,
+                            enable ? mask : 0);
 }
 
 static int stmpe1601_get_altfunc(struct stmpe *stmpe, enum stmpe_block block)
 {
-	switch (block) {
-	case STMPE_BLOCK_PWM:
-		return 2;
+    switch (block) {
+    case STMPE_BLOCK_PWM:
+        return 2;
 
-	case STMPE_BLOCK_KEYPAD:
-		return 1;
+    case STMPE_BLOCK_KEYPAD:
+        return 1;
 
-	case STMPE_BLOCK_GPIO:
-	default:
-		return 0;
-	}
+    case STMPE_BLOCK_GPIO:
+    default:
+        return 0;
+    }
 }
 
 static struct stmpe_variant_info stmpe1601 = {
-	.name		= "stmpe1601",
-	.id_val		= 0x0210,
-	.id_mask	= 0xfff0,	/* at least 0x0210 and 0x0212 */
-	.num_gpios	= 16,
-	.af_bits	= 2,
-	.regs		= stmpe1601_regs,
-	.blocks		= stmpe1601_blocks,
-	.num_blocks	= ARRAY_SIZE(stmpe1601_blocks),
-	.num_irqs	= STMPE1601_NR_INTERNAL_IRQS,
-	.enable		= stmpe1601_enable,
-	.get_altfunc	= stmpe1601_get_altfunc,
-	.enable_autosleep	= stmpe1601_autosleep,
+    .name		= "stmpe1601",
+    .id_val		= 0x0210,
+    .id_mask	= 0xfff0,	/* at least 0x0210 and 0x0212 */
+    .num_gpios	= 16,
+    .af_bits	= 2,
+    .regs		= stmpe1601_regs,
+    .blocks		= stmpe1601_blocks,
+    .num_blocks	= ARRAY_SIZE(stmpe1601_blocks),
+    .num_irqs	= STMPE1601_NR_INTERNAL_IRQS,
+    .enable		= stmpe1601_enable,
+    .get_altfunc	= stmpe1601_get_altfunc,
+    .enable_autosleep	= stmpe1601_autosleep,
 };
 
 /*
@@ -566,258 +575,258 @@ static struct stmpe_variant_info stmpe1601 = {
  */
 
 static const u8 stmpe24xx_regs[] = {
-	[STMPE_IDX_CHIP_ID]	= STMPE24XX_REG_CHIP_ID,
-	[STMPE_IDX_ICR_LSB]	= STMPE24XX_REG_ICR_LSB,
-	[STMPE_IDX_IER_LSB]	= STMPE24XX_REG_IER_LSB,
-	[STMPE_IDX_ISR_MSB]	= STMPE24XX_REG_ISR_MSB,
-	[STMPE_IDX_GPMR_LSB]	= STMPE24XX_REG_GPMR_LSB,
-	[STMPE_IDX_GPSR_LSB]	= STMPE24XX_REG_GPSR_LSB,
-	[STMPE_IDX_GPCR_LSB]	= STMPE24XX_REG_GPCR_LSB,
-	[STMPE_IDX_GPDR_LSB]	= STMPE24XX_REG_GPDR_LSB,
-	[STMPE_IDX_GPRER_LSB]	= STMPE24XX_REG_GPRER_LSB,
-	[STMPE_IDX_GPFER_LSB]	= STMPE24XX_REG_GPFER_LSB,
-	[STMPE_IDX_GPAFR_U_MSB]	= STMPE24XX_REG_GPAFR_U_MSB,
-	[STMPE_IDX_IEGPIOR_LSB]	= STMPE24XX_REG_IEGPIOR_LSB,
-	[STMPE_IDX_ISGPIOR_MSB]	= STMPE24XX_REG_ISGPIOR_MSB,
-	[STMPE_IDX_GPEDR_MSB]	= STMPE24XX_REG_GPEDR_MSB,
+    [STMPE_IDX_CHIP_ID]	= STMPE24XX_REG_CHIP_ID,
+    [STMPE_IDX_ICR_LSB]	= STMPE24XX_REG_ICR_LSB,
+    [STMPE_IDX_IER_LSB]	= STMPE24XX_REG_IER_LSB,
+    [STMPE_IDX_ISR_MSB]	= STMPE24XX_REG_ISR_MSB,
+    [STMPE_IDX_GPMR_LSB]	= STMPE24XX_REG_GPMR_LSB,
+    [STMPE_IDX_GPSR_LSB]	= STMPE24XX_REG_GPSR_LSB,
+    [STMPE_IDX_GPCR_LSB]	= STMPE24XX_REG_GPCR_LSB,
+    [STMPE_IDX_GPDR_LSB]	= STMPE24XX_REG_GPDR_LSB,
+    [STMPE_IDX_GPRER_LSB]	= STMPE24XX_REG_GPRER_LSB,
+    [STMPE_IDX_GPFER_LSB]	= STMPE24XX_REG_GPFER_LSB,
+    [STMPE_IDX_GPAFR_U_MSB]	= STMPE24XX_REG_GPAFR_U_MSB,
+    [STMPE_IDX_IEGPIOR_LSB]	= STMPE24XX_REG_IEGPIOR_LSB,
+    [STMPE_IDX_ISGPIOR_MSB]	= STMPE24XX_REG_ISGPIOR_MSB,
+    [STMPE_IDX_GPEDR_MSB]	= STMPE24XX_REG_GPEDR_MSB,
 };
 
 static struct stmpe_variant_block stmpe24xx_blocks[] = {
-	{
-		.cell	= &stmpe_gpio_cell,
-		.irq	= STMPE24XX_IRQ_GPIOC,
-		.block	= STMPE_BLOCK_GPIO,
-	},
-	{
-		.cell	= &stmpe_keypad_cell,
-		.irq	= STMPE24XX_IRQ_KEYPAD,
-		.block	= STMPE_BLOCK_KEYPAD,
-	},
+    {
+        .cell	= &stmpe_gpio_cell,
+        .irq	= STMPE24XX_IRQ_GPIOC,
+        .block	= STMPE_BLOCK_GPIO,
+    },
+    {
+        .cell	= &stmpe_keypad_cell,
+        .irq	= STMPE24XX_IRQ_KEYPAD,
+        .block	= STMPE_BLOCK_KEYPAD,
+    },
 };
 
 static int stmpe24xx_enable(struct stmpe *stmpe, unsigned int blocks,
-			    bool enable)
+                            bool enable)
 {
-	unsigned int mask = 0;
+    unsigned int mask = 0;
 
-	if (blocks & STMPE_BLOCK_GPIO)
-		mask |= STMPE24XX_SYS_CTRL_ENABLE_GPIO;
+    if (blocks & STMPE_BLOCK_GPIO)
+        mask |= STMPE24XX_SYS_CTRL_ENABLE_GPIO;
 
-	if (blocks & STMPE_BLOCK_KEYPAD)
-		mask |= STMPE24XX_SYS_CTRL_ENABLE_KPC;
+    if (blocks & STMPE_BLOCK_KEYPAD)
+        mask |= STMPE24XX_SYS_CTRL_ENABLE_KPC;
 
-	return __stmpe_set_bits(stmpe, STMPE24XX_REG_SYS_CTRL, mask,
-				enable ? mask : 0);
+    return __stmpe_set_bits(stmpe, STMPE24XX_REG_SYS_CTRL, mask,
+                            enable ? mask : 0);
 }
 
 static int stmpe24xx_get_altfunc(struct stmpe *stmpe, enum stmpe_block block)
 {
-	switch (block) {
-	case STMPE_BLOCK_ROTATOR:
-		return 2;
+    switch (block) {
+    case STMPE_BLOCK_ROTATOR:
+        return 2;
 
-	case STMPE_BLOCK_KEYPAD:
-		return 1;
+    case STMPE_BLOCK_KEYPAD:
+        return 1;
 
-	case STMPE_BLOCK_GPIO:
-	default:
-		return 0;
-	}
+    case STMPE_BLOCK_GPIO:
+    default:
+        return 0;
+    }
 }
 
 static struct stmpe_variant_info stmpe2401 = {
-	.name		= "stmpe2401",
-	.id_val		= 0x0101,
-	.id_mask	= 0xffff,
-	.num_gpios	= 24,
-	.af_bits	= 2,
-	.regs		= stmpe24xx_regs,
-	.blocks		= stmpe24xx_blocks,
-	.num_blocks	= ARRAY_SIZE(stmpe24xx_blocks),
-	.num_irqs	= STMPE24XX_NR_INTERNAL_IRQS,
-	.enable		= stmpe24xx_enable,
-	.get_altfunc	= stmpe24xx_get_altfunc,
+    .name		= "stmpe2401",
+    .id_val		= 0x0101,
+    .id_mask	= 0xffff,
+    .num_gpios	= 24,
+    .af_bits	= 2,
+    .regs		= stmpe24xx_regs,
+    .blocks		= stmpe24xx_blocks,
+    .num_blocks	= ARRAY_SIZE(stmpe24xx_blocks),
+    .num_irqs	= STMPE24XX_NR_INTERNAL_IRQS,
+    .enable		= stmpe24xx_enable,
+    .get_altfunc	= stmpe24xx_get_altfunc,
 };
 
 static struct stmpe_variant_info stmpe2403 = {
-	.name		= "stmpe2403",
-	.id_val		= 0x0120,
-	.id_mask	= 0xffff,
-	.num_gpios	= 24,
-	.af_bits	= 2,
-	.regs		= stmpe24xx_regs,
-	.blocks		= stmpe24xx_blocks,
-	.num_blocks	= ARRAY_SIZE(stmpe24xx_blocks),
-	.num_irqs	= STMPE24XX_NR_INTERNAL_IRQS,
-	.enable		= stmpe24xx_enable,
-	.get_altfunc	= stmpe24xx_get_altfunc,
-	.enable_autosleep	= stmpe1601_autosleep, /* same as stmpe1601 */
+    .name		= "stmpe2403",
+    .id_val		= 0x0120,
+    .id_mask	= 0xffff,
+    .num_gpios	= 24,
+    .af_bits	= 2,
+    .regs		= stmpe24xx_regs,
+    .blocks		= stmpe24xx_blocks,
+    .num_blocks	= ARRAY_SIZE(stmpe24xx_blocks),
+    .num_irqs	= STMPE24XX_NR_INTERNAL_IRQS,
+    .enable		= stmpe24xx_enable,
+    .get_altfunc	= stmpe24xx_get_altfunc,
+    .enable_autosleep	= stmpe1601_autosleep, /* same as stmpe1601 */
 };
 
 static struct stmpe_variant_info *stmpe_variant_info[] = {
-	[STMPE811]	= &stmpe811,
-	[STMPE1601]	= &stmpe1601,
-	[STMPE2401]	= &stmpe2401,
-	[STMPE2403]	= &stmpe2403,
+    [STMPE811]	= &stmpe811,
+    [STMPE1601]	= &stmpe1601,
+    [STMPE2401]	= &stmpe2401,
+    [STMPE2403]	= &stmpe2403,
 };
 
 static irqreturn_t stmpe_irq(int irq, void *data)
 {
-	struct stmpe *stmpe = data;
-	struct stmpe_variant_info *variant = stmpe->variant;
-	int num = DIV_ROUND_UP(variant->num_irqs, 8);
-	u8 israddr = stmpe->regs[STMPE_IDX_ISR_MSB];
-	u8 isr[num];
-	int ret;
-	int i;
+    struct stmpe *stmpe = data;
+    struct stmpe_variant_info *variant = stmpe->variant;
+    int num = DIV_ROUND_UP(variant->num_irqs, 8);
+    u8 israddr = stmpe->regs[STMPE_IDX_ISR_MSB];
+    u8 isr[num];
+    int ret;
+    int i;
 
-	ret = stmpe_block_read(stmpe, israddr, num, isr);
-	if (ret < 0)
-		return IRQ_NONE;
+    ret = stmpe_block_read(stmpe, israddr, num, isr);
+    if (ret < 0)
+        return IRQ_NONE;
 
-	for (i = 0; i < num; i++) {
-		int bank = num - i - 1;
-		u8 status = isr[i];
-		u8 clear;
+    for (i = 0; i < num; i++) {
+        int bank = num - i - 1;
+        u8 status = isr[i];
+        u8 clear;
 
-		status &= stmpe->ier[bank];
-		if (!status)
-			continue;
+        status &= stmpe->ier[bank];
+        if (!status)
+            continue;
 
-		clear = status;
-		while (status) {
-			int bit = __ffs(status);
-			int line = bank * 8 + bit;
+        clear = status;
+        while (status) {
+            int bit = __ffs(status);
+            int line = bank * 8 + bit;
 
-			handle_nested_irq(stmpe->irq_base + line);
-			status &= ~(1 << bit);
-		}
+            handle_nested_irq(stmpe->irq_base + line);
+            status &= ~(1 << bit);
+        }
 
-		stmpe_reg_write(stmpe, israddr + i, clear);
-	}
+        stmpe_reg_write(stmpe, israddr + i, clear);
+    }
 
-	return IRQ_HANDLED;
+    return IRQ_HANDLED;
 }
 
 static void stmpe_irq_lock(struct irq_data *data)
 {
-	struct stmpe *stmpe = irq_data_get_irq_chip_data(data);
+    struct stmpe *stmpe = irq_data_get_irq_chip_data(data);
 
-	mutex_lock(&stmpe->irq_lock);
+    mutex_lock(&stmpe->irq_lock);
 }
 
 static void stmpe_irq_sync_unlock(struct irq_data *data)
 {
-	struct stmpe *stmpe = irq_data_get_irq_chip_data(data);
-	struct stmpe_variant_info *variant = stmpe->variant;
-	int num = DIV_ROUND_UP(variant->num_irqs, 8);
-	int i;
+    struct stmpe *stmpe = irq_data_get_irq_chip_data(data);
+    struct stmpe_variant_info *variant = stmpe->variant;
+    int num = DIV_ROUND_UP(variant->num_irqs, 8);
+    int i;
 
-	for (i = 0; i < num; i++) {
-		u8 new = stmpe->ier[i];
-		u8 old = stmpe->oldier[i];
+    for (i = 0; i < num; i++) {
+        u8 new = stmpe->ier[i];
+        u8 old = stmpe->oldier[i];
 
-		if (new == old)
-			continue;
+        if (new == old)
+            continue;
 
-		stmpe->oldier[i] = new;
-		stmpe_reg_write(stmpe, stmpe->regs[STMPE_IDX_IER_LSB] - i, new);
-	}
+        stmpe->oldier[i] = new;
+        stmpe_reg_write(stmpe, stmpe->regs[STMPE_IDX_IER_LSB] - i, new);
+    }
 
-	mutex_unlock(&stmpe->irq_lock);
+    mutex_unlock(&stmpe->irq_lock);
 }
 
 static void stmpe_irq_mask(struct irq_data *data)
 {
-	struct stmpe *stmpe = irq_data_get_irq_chip_data(data);
-	int offset = data->irq - stmpe->irq_base;
-	int regoffset = offset / 8;
-	int mask = 1 << (offset % 8);
+    struct stmpe *stmpe = irq_data_get_irq_chip_data(data);
+    int offset = data->irq - stmpe->irq_base;
+    int regoffset = offset / 8;
+    int mask = 1 << (offset % 8);
 
-	stmpe->ier[regoffset] &= ~mask;
+    stmpe->ier[regoffset] &= ~mask;
 }
 
 static void stmpe_irq_unmask(struct irq_data *data)
 {
-	struct stmpe *stmpe = irq_data_get_irq_chip_data(data);
-	int offset = data->irq - stmpe->irq_base;
-	int regoffset = offset / 8;
-	int mask = 1 << (offset % 8);
+    struct stmpe *stmpe = irq_data_get_irq_chip_data(data);
+    int offset = data->irq - stmpe->irq_base;
+    int regoffset = offset / 8;
+    int mask = 1 << (offset % 8);
 
-	stmpe->ier[regoffset] |= mask;
+    stmpe->ier[regoffset] |= mask;
 }
 
 static struct irq_chip stmpe_irq_chip = {
-	.name			= "stmpe",
-	.irq_bus_lock		= stmpe_irq_lock,
-	.irq_bus_sync_unlock	= stmpe_irq_sync_unlock,
-	.irq_mask		= stmpe_irq_mask,
-	.irq_unmask		= stmpe_irq_unmask,
+    .name			= "stmpe",
+    .irq_bus_lock		= stmpe_irq_lock,
+    .irq_bus_sync_unlock	= stmpe_irq_sync_unlock,
+    .irq_mask		= stmpe_irq_mask,
+    .irq_unmask		= stmpe_irq_unmask,
 };
 
 static int __devinit stmpe_irq_init(struct stmpe *stmpe)
 {
-	int num_irqs = stmpe->variant->num_irqs;
-	int base = stmpe->irq_base;
-	int irq;
+    int num_irqs = stmpe->variant->num_irqs;
+    int base = stmpe->irq_base;
+    int irq;
 
-	for (irq = base; irq < base + num_irqs; irq++) {
-		irq_set_chip_data(irq, stmpe);
-		irq_set_chip_and_handler(irq, &stmpe_irq_chip,
-					 handle_edge_irq);
-		irq_set_nested_thread(irq, 1);
+    for (irq = base; irq < base + num_irqs; irq++) {
+        irq_set_chip_data(irq, stmpe);
+        irq_set_chip_and_handler(irq, &stmpe_irq_chip,
+                                 handle_edge_irq);
+        irq_set_nested_thread(irq, 1);
 #ifdef CONFIG_ARM
-		set_irq_flags(irq, IRQF_VALID);
+        set_irq_flags(irq, IRQF_VALID);
 #else
-		irq_set_noprobe(irq);
+        irq_set_noprobe(irq);
 #endif
-	}
+    }
 
-	return 0;
+    return 0;
 }
 
 static void stmpe_irq_remove(struct stmpe *stmpe)
 {
-	int num_irqs = stmpe->variant->num_irqs;
-	int base = stmpe->irq_base;
-	int irq;
+    int num_irqs = stmpe->variant->num_irqs;
+    int base = stmpe->irq_base;
+    int irq;
 
-	for (irq = base; irq < base + num_irqs; irq++) {
+    for (irq = base; irq < base + num_irqs; irq++) {
 #ifdef CONFIG_ARM
-		set_irq_flags(irq, 0);
+        set_irq_flags(irq, 0);
 #endif
-		irq_set_chip_and_handler(irq, NULL, NULL);
-		irq_set_chip_data(irq, NULL);
-	}
+        irq_set_chip_and_handler(irq, NULL, NULL);
+        irq_set_chip_data(irq, NULL);
+    }
 }
 
 static int __devinit stmpe_chip_init(struct stmpe *stmpe)
 {
-	unsigned int irq_trigger = stmpe->pdata->irq_trigger;
-	int autosleep_timeout = stmpe->pdata->autosleep_timeout;
-	struct stmpe_variant_info *variant = stmpe->variant;
-	u8 icr = STMPE_ICR_LSB_GIM;
-	unsigned int id;
-	u8 data[2];
-	int ret;
+    unsigned int irq_trigger = stmpe->pdata->irq_trigger;
+    int autosleep_timeout = stmpe->pdata->autosleep_timeout;
+    struct stmpe_variant_info *variant = stmpe->variant;
+    u8 icr = STMPE_ICR_LSB_GIM;
+    unsigned int id;
+    u8 data[2];
+    int ret;
 
-	ret = stmpe_block_read(stmpe, stmpe->regs[STMPE_IDX_CHIP_ID],
-			       ARRAY_SIZE(data), data);
-	if (ret < 0)
-		return ret;
+    ret = stmpe_block_read(stmpe, stmpe->regs[STMPE_IDX_CHIP_ID],
+                           ARRAY_SIZE(data), data);
+    if (ret < 0)
+        return ret;
 
-	id = (data[0] << 8) | data[1];
-	if ((id & variant->id_mask) != variant->id_val) {
-		dev_err(stmpe->dev, "unknown chip id: %#x\n", id);
-		return -EINVAL;
-	}
+    id = (data[0] << 8) | data[1];
+    if ((id & variant->id_mask) != variant->id_val) {
+        dev_err(stmpe->dev, "unknown chip id: %#x\n", id);
+        return -EINVAL;
+    }
 
-	dev_info(stmpe->dev, "%s detected, chip id: %#x\n", variant->name, id);
+    dev_info(stmpe->dev, "%s detected, chip id: %#x\n", variant->name, id);
 
-	/* Disable all modules -- subdrivers should enable what they need. */
-	ret = stmpe_disable(stmpe, ~0);
-	if (ret)
-		return ret;
+    /* Disable all modules -- subdrivers should enable what they need. */
+    ret = stmpe_disable(stmpe, ~0);
+    if (ret)
+        return ret;
 
 	if (irq_trigger == IRQF_TRIGGER_FALLING ||
 	    irq_trigger == IRQF_TRIGGER_RISING)
@@ -826,189 +835,219 @@ static int __devinit stmpe_chip_init(struct stmpe *stmpe)
 	if (irq_trigger == IRQF_TRIGGER_RISING ||
 	    irq_trigger == IRQF_TRIGGER_HIGH)
 		icr |= STMPE_ICR_LSB_HIGH;
+//    if (irq_trigger == IRQF_TRIGGER_FALLING ||
+//            irq_trigger == IRQF_TRIGGER_RISING)
+//    {
+//        icr |= STMPE_ICR_LSB_EDGE;
+//        printk(" STMPE_ICR_LSB_EDGE \n");
+//    }
+
+//    if (irq_trigger == IRQF_TRIGGER_RISING ||
+//            irq_trigger == IRQF_TRIGGER_HIGH)
+//    {
+//        icr |= STMPE_ICR_LSB_HIGH;
+//        printk(" STMPE_ICR_LSB_HIGH \n");
+//    }
+
+//    if (stmpe->pdata->irq_invert_polarity)
+//    {
+//        icr ^= STMPE_ICR_LSB_HIGH;
+//        printk(" irq_invert_polarity \n");
+//    }
 
 	if (stmpe->pdata->irq_invert_polarity)
 		icr ^= STMPE_ICR_LSB_HIGH;
 
-	if (stmpe->pdata->autosleep) {
-		ret = stmpe_autosleep(stmpe, autosleep_timeout);
-		if (ret)
-			return ret;
-	}
+    if (stmpe->pdata->autosleep) {
+        ret = stmpe_autosleep(stmpe, autosleep_timeout);
+        if (ret)
+            return ret;
+    }
 
-	return stmpe_reg_write(stmpe, stmpe->regs[STMPE_IDX_ICR_LSB], icr);
+    return stmpe_reg_write(stmpe, stmpe->regs[STMPE_IDX_ICR_LSB], icr);
 }
 
 static int __devinit stmpe_add_device(struct stmpe *stmpe,
-				      struct mfd_cell *cell, int irq)
+                                      struct mfd_cell *cell, int irq)
 {
-	return mfd_add_devices(stmpe->dev, stmpe->pdata->id, cell, 1,
-			       NULL, stmpe->irq_base + irq);
+    return mfd_add_devices(stmpe->dev, stmpe->pdata->id, cell, 1,
+                           NULL, stmpe->irq_base + irq);
 }
 
 static int __devinit stmpe_devices_init(struct stmpe *stmpe)
 {
-	struct stmpe_variant_info *variant = stmpe->variant;
-	unsigned int platform_blocks = stmpe->pdata->blocks;
-	int ret = -EINVAL;
-	int i;
+    struct stmpe_variant_info *variant = stmpe->variant;
+    unsigned int platform_blocks = stmpe->pdata->blocks;
+    int ret = -EINVAL;
+    int i;
 
-	for (i = 0; i < variant->num_blocks; i++) {
-		struct stmpe_variant_block *block = &variant->blocks[i];
+    for (i = 0; i < variant->num_blocks; i++) {
+        struct stmpe_variant_block *block = &variant->blocks[i];
 
-		if (!(platform_blocks & block->block))
-			continue;
+        if (!(platform_blocks & block->block))
+            continue;
 
-		platform_blocks &= ~block->block;
-		ret = stmpe_add_device(stmpe, block->cell, block->irq);
-		if (ret)
-			return ret;
-	}
+        platform_blocks &= ~block->block;
+        ret = stmpe_add_device(stmpe, block->cell, block->irq);
+        if (ret)
+            return ret;
+    }
 
-	if (platform_blocks)
-		dev_warn(stmpe->dev,
-			 "platform wants blocks (%#x) not present on variant",
-			 platform_blocks);
+    if (platform_blocks)
+        dev_warn(stmpe->dev,
+                 "platform wants blocks (%#x) not present on variant",
+                 platform_blocks);
 
-	return ret;
+    return ret;
 }
 
 #ifdef CONFIG_PM
 static int stmpe_suspend(struct device *dev)
 {
-	struct i2c_client *i2c = to_i2c_client(dev);
+    struct i2c_client *i2c = to_i2c_client(dev);
 
-	if (device_may_wakeup(&i2c->dev))
-		enable_irq_wake(i2c->irq);
+    printk("stmpe_suspend\n");
 
-	return 0;
+    if (device_may_wakeup(&i2c->dev))
+        enable_irq_wake(i2c->irq);
+
+    return 0;
 }
 
 static int stmpe_resume(struct device *dev)
 {
-	struct i2c_client *i2c = to_i2c_client(dev);
+    struct i2c_client *i2c = to_i2c_client(dev);
 
-	if (device_may_wakeup(&i2c->dev))
-		disable_irq_wake(i2c->irq);
 
-	return 0;
+    printk("stmpe_resume\n");
+
+    if (device_may_wakeup(&i2c->dev))
+        disable_irq_wake(i2c->irq);
+
+    return 0;
 }
 #endif
 
 static int __devinit stmpe_probe(struct i2c_client *i2c,
-				 const struct i2c_device_id *id)
+                                 const struct i2c_device_id *id)
 {
-	struct stmpe_platform_data *pdata = i2c->dev.platform_data;
-	struct stmpe *stmpe;
-	int ret;
+    struct stmpe_platform_data *pdata = i2c->dev.platform_data;
+    struct stmpe *stmpe;
+    int ret;
 
-	if (!pdata)
-		return -EINVAL;
+    if (!pdata)
+        return -EINVAL;
 
-	stmpe = kzalloc(sizeof(struct stmpe), GFP_KERNEL);
-	if (!stmpe)
-		return -ENOMEM;
+    stmpe = kzalloc(sizeof(struct stmpe), GFP_KERNEL);
+    if (!stmpe)
+        return -ENOMEM;
 
-	mutex_init(&stmpe->irq_lock);
-	mutex_init(&stmpe->lock);
+    mutex_init(&stmpe->irq_lock);
+    mutex_init(&stmpe->lock);
 
-	stmpe->dev = &i2c->dev;
-	stmpe->i2c = i2c;
+    stmpe->dev = &i2c->dev;
+    stmpe->i2c = i2c;
 
-	stmpe->pdata = pdata;
-	stmpe->irq_base = pdata->irq_base;
+    stmpe->pdata = pdata;
+    stmpe->irq_base = pdata->irq_base;
 
-	stmpe->partnum = id->driver_data;
-	stmpe->variant = stmpe_variant_info[stmpe->partnum];
-	stmpe->regs = stmpe->variant->regs;
-	stmpe->num_gpios = stmpe->variant->num_gpios;
+    stmpe->partnum = id->driver_data;
+    stmpe->variant = stmpe_variant_info[stmpe->partnum];
+    stmpe->regs = stmpe->variant->regs;
+    stmpe->num_gpios = stmpe->variant->num_gpios;
 
-	i2c_set_clientdata(i2c, stmpe);
+    i2c_set_clientdata(i2c, stmpe);
 
-	ret = stmpe_chip_init(stmpe);
-	if (ret)
-		goto out_free;
+    ret = stmpe_chip_init(stmpe);
+    if (ret){
+        dev_err(stmpe->dev, "failed to chip init: %d\n", ret);
+        goto out_free;
+    }
 
-	ret = stmpe_irq_init(stmpe);
-	if (ret)
-		goto out_free;
+    ret = stmpe_irq_init(stmpe);
+    if (ret) {
+        dev_err(stmpe->dev, "failed to irq init: %d\n", ret);
+        goto out_free;
+    }
 
-	ret = request_threaded_irq(stmpe->i2c->irq, NULL, stmpe_irq,
-				   pdata->irq_trigger | IRQF_ONESHOT,
-				   "stmpe", stmpe);
-	if (ret) {
-		dev_err(stmpe->dev, "failed to request IRQ: %d\n", ret);
-		goto out_removeirq;
-	}
+    ret = request_threaded_irq(stmpe->i2c->irq, NULL, stmpe_irq,
+                               pdata->irq_trigger | IRQF_ONESHOT,
+                               /*"stmpe"*/i2c->name, stmpe);
+    if (ret) {
+        dev_err(stmpe->dev, "failed to request IRQ: %d\n", ret);
+        goto out_removeirq;
+    }
 
-	ret = stmpe_devices_init(stmpe);
-	if (ret) {
-		dev_err(stmpe->dev, "failed to add children\n");
-		goto out_removedevs;
-	}
+    ret = stmpe_devices_init(stmpe);
+    if (ret) {
+        dev_err(stmpe->dev, "failed to add children\n");
+        goto out_removedevs;
+    }
 
-	return 0;
+    stmpe_irq_remove(stmpe);
+
+    return 0;
 
 out_removedevs:
-	mfd_remove_devices(stmpe->dev);
-	free_irq(stmpe->i2c->irq, stmpe);
+    mfd_remove_devices(stmpe->dev);
+    free_irq(stmpe->i2c->irq, stmpe);
 out_removeirq:
-	stmpe_irq_remove(stmpe);
+    stmpe_irq_remove(stmpe);
 out_free:
-	kfree(stmpe);
-	return ret;
+    kfree(stmpe);
+    return ret;
 }
 
 static int __devexit stmpe_remove(struct i2c_client *client)
 {
-	struct stmpe *stmpe = i2c_get_clientdata(client);
+    struct stmpe *stmpe = i2c_get_clientdata(client);
 
-	mfd_remove_devices(stmpe->dev);
+    mfd_remove_devices(stmpe->dev);
 
-	free_irq(stmpe->i2c->irq, stmpe);
-	stmpe_irq_remove(stmpe);
+    free_irq(stmpe->i2c->irq, stmpe);
+    stmpe_irq_remove(stmpe);
 
-	kfree(stmpe);
+    kfree(stmpe);
 
-	return 0;
+    return 0;
 }
 
 static const struct i2c_device_id stmpe_id[] = {
-	{ "stmpe811", STMPE811 },
-	{ "stmpe1601", STMPE1601 },
-	{ "stmpe2401", STMPE2401 },
-	{ "stmpe2403", STMPE2403 },
-	{ }
+    { "stmpe811", STMPE811 },
+    { "stmpe1601", STMPE1601 },
+    { "stmpe2401", STMPE2401 },
+    { "stmpe2403", STMPE2403 },
+    { }
 };
 MODULE_DEVICE_TABLE(i2c, stmpe_id);
 
 #ifdef CONFIG_PM
 static const struct dev_pm_ops stmpe_dev_pm_ops = {
-	.suspend	= stmpe_suspend,
-	.resume		= stmpe_resume,
+    .suspend	= stmpe_suspend,
+    .resume		= stmpe_resume,
 };
 #endif
 
 static struct i2c_driver stmpe_driver = {
-	.driver.name	= "stmpe",
-	.driver.owner	= THIS_MODULE,
-#ifdef CONFIG_PM
-	.driver.pm	= &stmpe_dev_pm_ops,
-#endif
-	.probe		= stmpe_probe,
-	.remove		= __devexit_p(stmpe_remove),
-	.id_table	= stmpe_id,
+    .driver.name	= "stmpe",
+    .driver.owner	= THIS_MODULE,
+    #ifdef CONFIG_PM
+    .driver.pm	= &stmpe_dev_pm_ops,
+    #endif
+    .probe		= stmpe_probe,
+    .remove		= __devexit_p(stmpe_remove),
+    .id_table	= stmpe_id,
 };
 
 static int __init stmpe_init(void)
 {
-	return i2c_add_driver(&stmpe_driver);
+    return i2c_add_driver(&stmpe_driver);
 }
 subsys_initcall(stmpe_init);
 
 static void __exit stmpe_exit(void)
 {
-	i2c_del_driver(&stmpe_driver);
+    i2c_del_driver(&stmpe_driver);
 }
 module_exit(stmpe_exit);
 

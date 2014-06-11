@@ -155,6 +155,7 @@ static void sr_set_clk_length(struct omap_sr *sr)
 	struct clk *sys_ck;
 	u32 sys_clk_speed;
 
+    printk(KERN_INFO "sr_set_clk_length\n");
 	if (cpu_is_omap34xx())
 		sys_ck = clk_get(NULL, "sys_ck");
 	else
@@ -199,6 +200,8 @@ static void sr_set_regfields(struct omap_sr *sr)
 	 * file or pmic specific data structure. In that case these structure
 	 * fields will have to be populated using the pdata or pmic structure.
 	 */
+
+    printk(KERN_INFO "sr_set_regfields\n");
 	if (cpu_is_omap34xx() || cpu_is_omap44xx()) {
 		sr->err_weight = OMAP3430_SR_ERRWEIGHT;
 		sr->err_maxlimit = OMAP3430_SR_ERRMAXLIMIT;
@@ -215,6 +218,7 @@ static void sr_set_regfields(struct omap_sr *sr)
 
 static void sr_start_vddautocomp(struct omap_sr *sr)
 {
+    printk(KERN_INFO "sr_start_vddautocomp\n");
 	if (!sr_class || !(sr_class->enable) || !(sr_class->configure)) {
 		dev_warn(&sr->pdev->dev,
 			"%s: smartreflex class driver not registered\n",
@@ -228,6 +232,7 @@ static void sr_start_vddautocomp(struct omap_sr *sr)
 
 static void sr_stop_vddautocomp(struct omap_sr *sr)
 {
+    printk(KERN_INFO "sr_stop_vddautocomp\n");
 	if (!sr_class || !(sr_class->disable)) {
 		dev_warn(&sr->pdev->dev,
 			"%s: smartreflex class driver not registered\n",
@@ -259,6 +264,7 @@ static int sr_late_init(struct omap_sr *sr_info)
 	struct resource *mem;
 	int ret = 0;
 
+    printk(KERN_INFO "sr_late_init\n");
 	if (sr_class->notify && sr_class->notify_flags && sr_info->irq) {
 		name = kasprintf(GFP_KERNEL, "sr_%s", sr_info->voltdm->name);
 		if (name == NULL) {
@@ -293,6 +299,8 @@ error:
 static void sr_v1_disable(struct omap_sr *sr)
 {
 	int timeout = 0;
+
+    printk(KERN_INFO "sr_v1_disable\n");
 
 	/* Enable MCUDisableAcknowledge interrupt */
 	sr_modify_reg(sr, ERRCONFIG_V1,
@@ -330,6 +338,7 @@ static void sr_v2_disable(struct omap_sr *sr)
 {
 	int timeout = 0;
 
+    printk(KERN_INFO "sr_v2_disable\n");
 	/* Enable MCUDisableAcknowledge interrupt */
 	sr_write_reg(sr, IRQENABLE_SET, IRQENABLE_MCUDISABLEACKINT);
 
@@ -471,6 +480,8 @@ int sr_configure_minmax(struct voltagedomain *voltdm)
 	u8 senp_shift, senn_shift;
 	struct omap_sr *sr = _sr_lookup(voltdm);
 
+
+    printk(KERN_INFO "sr_configure_minmax\n");
 	if (IS_ERR(sr)) {
 		pr_warning("%s: omap_sr struct for sr_%s not found\n",
 			__func__, voltdm->name);
@@ -543,6 +554,8 @@ int sr_configure_minmax(struct voltagedomain *voltdm)
 int sr_enable(struct voltagedomain *voltdm, unsigned long volt)
 {
 	u32 nvalue_reciprocal;
+
+    printk(KERN_INFO "sr_enable\n");
 	struct omap_volt_data *volt_data;
 	struct omap_sr *sr = _sr_lookup(voltdm);
 	int ret;
@@ -601,6 +614,7 @@ void sr_disable(struct voltagedomain *voltdm)
 {
 	struct omap_sr *sr = _sr_lookup(voltdm);
 
+    printk(KERN_INFO "sr_disable\n");
 	if (IS_ERR(sr)) {
 		pr_warning("%s: omap_sr struct for sr_%s not found\n",
 			__func__, voltdm->name);
@@ -675,6 +689,8 @@ void omap_sr_enable(struct voltagedomain *voltdm)
 {
 	struct omap_sr *sr = _sr_lookup(voltdm);
 
+
+    printk(KERN_INFO "omap_sr_enable\n");
 	if (IS_ERR(sr)) {
 		pr_warning("%s: omap_sr struct for sr_%s not found\n",
 			__func__, voltdm->name);
@@ -708,6 +724,7 @@ void omap_sr_disable(struct voltagedomain *voltdm)
 {
 	struct omap_sr *sr = _sr_lookup(voltdm);
 
+    printk(KERN_INFO "omap_sr_disable\n");
 	if (IS_ERR(sr)) {
 		pr_warning("%s: omap_sr struct for sr_%s not found\n",
 			__func__, voltdm->name);
@@ -769,6 +786,7 @@ void omap_sr_disable_reset_volt(struct voltagedomain *voltdm)
  */
 void omap_sr_register_pmic(struct omap_sr_pmic_data *pmic_data)
 {
+    printk(KERN_INFO "omap_sr_register_pmic\n");
 	if (!pmic_data) {
 		pr_warning("%s: Trying to register NULL PMIC data structure"
 			"with smartreflex\n", __func__);
@@ -783,6 +801,7 @@ static int omap_sr_autocomp_show(void *data, u64 *val)
 {
 	struct omap_sr *sr_info = (struct omap_sr *) data;
 
+    printk(KERN_INFO "omap_sr_autocomp_show\n");
 	if (!sr_info) {
 		pr_warning("%s: omap_sr struct not found\n", __func__);
 		return -EINVAL;
@@ -797,6 +816,7 @@ static int omap_sr_autocomp_store(void *data, u64 val)
 {
 	struct omap_sr *sr_info = (struct omap_sr *) data;
 
+    printk(KERN_INFO "omap_sr_autocomp_store\n");
 	if (!sr_info) {
 		pr_warning("%s: omap_sr struct not found\n", __func__);
 		return -EINVAL;
@@ -832,6 +852,7 @@ static int __init omap_sr_probe(struct platform_device *pdev)
 	int i, ret = 0;
 	char *name;
 
+    printk(KERN_INFO "omap_sr_probe\n");
 	if (!sr_info) {
 		dev_err(&pdev->dev, "%s: unable to allocate sr_info\n",
 			__func__);
@@ -1020,6 +1041,7 @@ static int __init sr_init(void)
 {
 	int ret = 0;
 
+    printk(KERN_INFO "sr_init");
 	/*
 	 * sr_init is a late init. If by then a pmic specific API is not
 	 * registered either there is no need for anything to be done on

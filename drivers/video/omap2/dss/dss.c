@@ -28,6 +28,7 @@
 #include <linux/delay.h>
 #include <linux/seq_file.h>
 #include <linux/clk.h>
+#include <plat/omap-pm.h>
 
 #include <video/omapdss.h>
 #include <plat/clock.h>
@@ -93,6 +94,7 @@ static void dss_clk_enable_no_ctx(enum dss_clock clks);
 static void dss_clk_disable_no_ctx(enum dss_clock clks);
 
 static int _omap_dss_wait_reset(void);
+static int _omap_dss_reset(void);
 
 static inline void dss_write_reg(const struct dss_reg idx, u32 val)
 {
@@ -111,6 +113,7 @@ static inline u32 dss_read_reg(const struct dss_reg idx)
 
 void dss_save_context(void)
 {
+    printk(KERN_INFO "dss_save_context\n");
 	if (cpu_is_omap24xx())
 		return;
 
@@ -126,7 +129,8 @@ void dss_save_context(void)
 
 void dss_restore_context(void)
 {
-	if (_omap_dss_wait_reset())
+    printk(KERN_INFO "dss_restore_context\n");
+    if (_omap_dss_wait_reset())
 		DSSERR("DSS not coming out of reset after sleep\n");
 
 	RR(SYSCONFIG);
@@ -141,6 +145,7 @@ void dss_restore_context(void)
 
 #undef SR
 #undef RR
+
 
 void dss_sdi_init(u8 datapairs)
 {
@@ -620,6 +625,8 @@ static int _omap_dss_wait_reset(void)
 {
 	int t = 0;
 
+
+
 	while (REG_GET(DSS_SYSSTATUS, 0, 0) == 0) {
 		if (++t > 1000) {
 			DSSERR("soft reset failed\n");
@@ -768,6 +775,8 @@ static int dss_get_ctx_id(void)
 	struct omap_display_platform_data *pdata = dss.pdev->dev.platform_data;
 	int r;
 
+    return omap_pm_get_dev_context_loss_count(&dss.pdev->dev);
+
 	if (!pdata->board_data->get_last_off_on_transaction_id)
 		return 0;
 	r = pdata->board_data->get_last_off_on_transaction_id(&dss.pdev->dev);
@@ -783,6 +792,8 @@ int dss_need_ctx_restore(void)
 {
 	int id = dss_get_ctx_id();
 
+    printk(KERN_INFO "dss_need_ctx_restore\n");
+
 	if (id < 0 || id != dss.ctx_id) {
 		DSSDBG("ctx id %d -> id %d\n",
 				dss.ctx_id, id);
@@ -796,6 +807,8 @@ int dss_need_ctx_restore(void)
 static void save_all_ctx(void)
 {
 	DSSDBG("save context\n");
+
+     printk(KERN_INFO "save_all_ctx\n");
 
 	dss_clk_enable_no_ctx(DSS_CLK_ICK | DSS_CLK_FCK);
 
@@ -812,6 +825,7 @@ static void restore_all_ctx(void)
 {
 	DSSDBG("restore context\n");
 
+    printk(KERN_INFO "restore_all_ctx\n");
 	dss_clk_enable_all_no_ctx();
 
 	dss_restore_context();
@@ -971,6 +985,7 @@ void dss_clk_enable(enum dss_clock clks)
 {
 	bool check_ctx = dss.num_clks_enabled == 0;
 
+    printk(KERN_INFO "dss_clk_enable: 0x%02x\n",   clks);
 	dss_clk_enable_no_ctx(clks);
 
 	/*
@@ -981,13 +996,21 @@ void dss_clk_enable(enum dss_clock clks)
 	if (cpu_is_omap44xx() && check_ctx)
 		udelay(10);
 
-	if (check_ctx && cpu_is_omap34xx() && dss_need_ctx_restore())
-		restore_all_ctx();
+    printk(KERN_INFO "check_ctx: 0x%08x\n",   check_ctx);
+   // printk(KERN_INFO "dss_need_ctx_restore: 0x%08x\n",   dss_need_ctx_restore());
+
+//    if (check_ctx && cpu_is_omap34xx() && dss_need_ctx_restore())
+//        restore_all_ctx();
+    if (check_ctx && dss_need_ctx_restore())
+       restore_all_ctx();
 }
 
 static void dss_clk_disable_no_ctx(enum dss_clock clks)
 {
 	unsigned num_clks = count_clk_bits(clks);
+
+
+//    printk(KERN_INFO "dss_clk_disable_no_ctx: 0x%02x\n",   clks);
 
 	if (clks & DSS_CLK_ICK)
 		clk_disable(dss.dss_ick);
@@ -1005,6 +1028,7 @@ static void dss_clk_disable_no_ctx(enum dss_clock clks)
 
 void dss_clk_disable(enum dss_clock clks)
 {
+    printk(KERN_INFO "dss_clk_disable: 0x%02x\n",   clks);
 	if (cpu_is_omap34xx()) {
 		unsigned num_clks = count_clk_bits(clks);
 
@@ -1021,7 +1045,8 @@ static void dss_clk_enable_all_no_ctx(void)
 {
 	enum dss_clock clks;
 
-	clks = DSS_CLK_ICK | DSS_CLK_FCK | DSS_CLK_SYSCK | DSS_CLK_TVFCK;
+    printk(KERN_INFO "dss_clk_enable_all_no_ctx\n");
+    clks = DSS_CLK_ICK | DSS_CLK_FCK | DSS_CLK_SYSCK | DSS_CLK_TVFCK;
 	if (cpu_is_omap34xx())
 		clks |= DSS_CLK_VIDFCK;
 	dss_clk_enable_no_ctx(clks);
@@ -1031,6 +1056,7 @@ static void dss_clk_disable_all_no_ctx(void)
 {
 	enum dss_clock clks;
 
+    printk(KERN_INFO "dss_clk_disable_all_no_ctx\n");
 	clks = DSS_CLK_ICK | DSS_CLK_FCK | DSS_CLK_SYSCK | DSS_CLK_TVFCK;
 	if (cpu_is_omap34xx())
 		clks |= DSS_CLK_VIDFCK;

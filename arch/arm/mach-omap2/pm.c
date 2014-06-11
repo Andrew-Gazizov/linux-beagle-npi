@@ -59,7 +59,8 @@ EXPORT_SYMBOL(omap4_get_dsp_device);
 /* static int _init_omap_device(struct omap_hwmod *oh, void *user) */
 static int _init_omap_device(char *name, struct device **new_dev)
 {
-	struct omap_hwmod *oh;
+//    printk("%s\n", __func__);
+    struct omap_hwmod *oh;
 	struct omap_device *od;
 
 	oh = omap_hwmod_lookup(name);
@@ -82,7 +83,8 @@ static int _init_omap_device(char *name, struct device **new_dev)
  */
 static void omap2_init_processor_devices(void)
 {
-	_init_omap_device("mpu", &mpu_dev);
+//    printk("%s\n", __func__);
+    _init_omap_device("mpu", &mpu_dev);
 	if (omap3_has_iva())
 		_init_omap_device("iva", &iva_dev);
 
@@ -253,7 +255,8 @@ postcore_initcall(omap2_common_pm_init);
 
 static int __init omap2_common_pm_late_init(void)
 {
-	/* Init the OMAP TWL parameters */
+    printk("%s\n", __func__);
+    /* Init the OMAP TWL parameters */
 	omap3_twl_init();
 	omap4_twl_init();
 
@@ -266,6 +269,14 @@ static int __init omap2_common_pm_late_init(void)
 
 	/* Smartreflex device init */
 	omap_devinit_smartreflex();
+
+    /*
+     * Set all OMAP3/4 DPLLs to autoidle.
+     * XXX TODO: Add all the iclk autoidles in here as well,
+     * the OMAP2 DPLL, the OMAP2 APLLs, and the AUTOEXTCLKMODE
+     * control here too.
+     */
+    omap_clk_enable_autoidle_all();
 
 	return 0;
 }

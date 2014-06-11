@@ -27,7 +27,7 @@ obj-$(CONFIG_XEN)		+= xen/
 # regulators early, since some subsystems rely on them to initialize
 obj-$(CONFIG_REGULATOR)		+= regulator/
 
-# tty/ comes before char/ so that the VT console is the boot-time
+# tty/ comes before char/ so that the VT console is thboot-time
 # default.
 obj-y				+= tty/
 obj-y				+= char/

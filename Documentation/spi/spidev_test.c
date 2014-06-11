@@ -29,25 +29,21 @@ static void pabort(const char *s)
 	abort();
 }
 
-static const char *device = "/dev/spidev1.1";
+static const char *device = "/dev/spidev1.0";
 static uint8_t mode;
 static uint8_t bits = 8;
 static uint32_t speed = 500000;
 static uint16_t delay;
 
-static void transfer(int fd)
+static void transfer(int fd, uchar reg, uchar val)
 {
 	int ret;
-	uint8_t tx[] = {
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0x40, 0x00, 0x00, 0x00, 0x00, 0x95,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0xDE, 0xAD, 0xBE, 0xEF, 0xBA, 0xAD,
-		0xF0, 0x0D,
-	};
-	uint8_t rx[ARRAY_SIZE(tx)] = {0, };
+    uint8_t tx[4];
+    tx[0]=0x0;
+    tx[1]=reg;
+    tx[2]=0x1;
+    tx[3]=val;
+    uint8_t rx[ARRAY_SIZE(tx)] = {0, };
 	struct spi_ioc_transfer tr = {
 		.tx_buf = (unsigned long)tx,
 		.rx_buf = (unsigned long)rx,
@@ -202,9 +198,56 @@ int main(int argc, char *argv[])
 	printf("bits per word: %d\n", bits);
 	printf("max speed: %d Hz (%d KHz)\n", speed, speed/1000);
 
-	transfer(fd);
+    printf("initialization disp sequance\n", bits);
 
-	close(fd);
+    mdelay(1+5);
+    transfer(fd, 3, 0x1);
+    transfer(fd, 1, 0x0);
+    transfer(fd, 100, 0x0f);
+    transfer(fd, 101, 0x37);
+    transfer(fd, 102, 0x3D);
+    transfer(fd, 103, 0x4);
+    transfer(fd, 105, 0x30);
+    transfer(fd, 106, 0x84);
+    transfer(fd, 107, 0x05);
+    transfer(fd, 108, 0x17);
+    transfer(fd, 109, 0x62);
+    transfer(fd, 110, 0x50);
+    transfer(fd, 111, 0x30);
+    transfer(fd, 112, 0x73);
+    transfer(fd, 113, 0x07);
+    transfer(fd, 114, 0x66);
+    transfer(fd, 115, 0x51);
+    transfer(fd, 116, 0x50);
+    transfer(fd, 2, 0x40);
+    transfer(fd, 75, 0x4);
+    transfer(fd, 76, 0x1);
+    transfer(fd, 77, 0x1);
+    transfer(fd, 80, 0x0);
+    transfer(fd, 81, 0x0);
+    transfer(fd, 82, 0x24);
+    transfer(fd, 83, 0xEB);
+    transfer(fd, 86, 0x15);
+    transfer(fd, 87, 0xF0);
+    transfer(fd, 95, 0x3F);
+    transfer(fd, 96, 0x22);
+    transfer(fd, 25, 0x76);
+    transfer(fd, 26, 0x54);
+    transfer(fd, 27, 0x6B);
+    transfer(fd, 28, 0x60);
+    transfer(fd, 29, 0x04);
+    transfer(fd, 30, 0x3C);
+    transfer(fd, 31, 0xA1);
+    transfer(fd, 32, 0x00);
+    transfer(fd, 33, 0x20);
+    transfer(fd, 24, 0x77);
+
+    udelay(30+5);
+    transfer(fd, 59, 0x01);
+    mdelay(20+5);
+    transfer(fd, 0, 0x00);
+
+    close(fd);
 
 	return ret;
 }

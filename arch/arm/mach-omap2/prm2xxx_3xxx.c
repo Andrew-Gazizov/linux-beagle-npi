@@ -27,6 +27,7 @@
 #include "prm-regbits-24xx.h"
 #include "prm-regbits-34xx.h"
 
+
 u32 omap2_prm_read_mod_reg(s16 module, u16 idx)
 {
 	return __raw_readl(prm_base + module + idx);

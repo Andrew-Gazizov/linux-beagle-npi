@@ -109,6 +109,8 @@ int omap_irq_pending(void)
 {
 	int i;
 
+    printk(KERN_INFO "omap_irq_pending");
+
 	for (i = 0; i < ARRAY_SIZE(irq_banks); i++) {
 		struct omap_irq_bank *bank = irq_banks + i;
 		int irq;
@@ -245,12 +247,14 @@ void omap_intc_restore_context(void)
 
 void omap3_intc_suspend(void)
 {
+    printk(KERN_INFO "omap3_intc_suspend");
 	/* A pending interrupt would prevent OMAP from entering suspend */
 	omap_ack_irq(0);
 }
 
 void omap3_intc_prepare_idle(void)
 {
+    printk(KERN_INFO "omap3_intc_prepare_idle");
 	/*
 	 * Disable autoidle as it can stall interrupt controller,
 	 * cf. errata ID i540 for 3430 (all revisions up to 3.1.x)
@@ -260,6 +264,7 @@ void omap3_intc_prepare_idle(void)
 
 void omap3_intc_resume_idle(void)
 {
+    printk(KERN_INFO "omap3_intc_resume_idle");
 	/* Re-enable autoidle */
 	intc_bank_write_reg(1, &irq_banks[0], INTC_SYSCONFIG);
 }

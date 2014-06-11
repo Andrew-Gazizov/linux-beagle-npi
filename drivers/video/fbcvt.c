@@ -193,7 +193,7 @@ static u32 fb_cvt_aspect_ratio(struct fb_cvt_data *cvt)
 
 	if (xres == (yres * 4)/3 && !((yres * 4) % 3))
 		aspect = 0;
-	else if (xres == (yres * 16)/9 && !((yres * 16) % 9))
+    else if (xres == (yres * 16)/9 && !((yres * 16) % 9))
 		aspect = 1;
 	else if (xres == (yres * 16)/10 && !((yres * 16) % 10))
 		aspect = 2;
@@ -317,7 +317,22 @@ int fb_find_mode_cvt(struct fb_videomode *mode, int margins, int rb)
 	if (mode->vmode & FB_VMODE_INTERLACED)
 	    cvt.flags |= FB_CVT_FLAG_INTERLACED;
 
-	cvt.xres = mode->xres;
+//  u32 refresh;		/* optional */
+//	u32 xres;
+//	u32 yres;
+//	u32 pixclock;
+//	u32 left_margin;
+//	u32 right_margin;
+//	u32 upper_margin;
+//	u32 lower_margin;
+//	u32 hsync_len;
+//	u32 vsync_len;
+//	u32 sync;
+//	u32 vmode;
+//	u32 flag;
+
+
+    cvt.xres = mode->xres;
 	cvt.yres = mode->yres;
 	cvt.refresh = mode->refresh;
 	cvt.f_refresh = cvt.refresh;
@@ -333,6 +348,7 @@ int fb_find_mode_cvt(struct fb_videomode *mode, int margins, int rb)
 		printk(KERN_INFO "fbcvt: Refresh rate not CVT "
 		       "standard\n");
 		cvt.status = 1;
+//		cvt.status = 1;
 	}
 
 	cvt.xres &= ~(FB_CVT_CELLSIZE - 1);
@@ -372,7 +388,9 @@ int fb_find_mode_cvt(struct fb_videomode *mode, int margins, int rb)
 	cvt.v_back_porch = 3 + cvt.v_margin;
 	cvt.v_front_porch = cvt.vtotal - cvt.yres/cvt.interlace -
 	    cvt.v_back_porch - cvt.vsync;
-	fb_cvt_print_name(&cvt);
+
+
+    fb_cvt_print_name(&cvt);
 	fb_cvt_convert_to_mode(&cvt, mode);
 
 	return 0;

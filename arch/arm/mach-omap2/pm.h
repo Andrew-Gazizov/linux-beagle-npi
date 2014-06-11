@@ -15,6 +15,14 @@
 
 #include "powerdomain.h"
 
+static void omap3logic_pm_init(void);
+void omap_pm_sys_offmode_select(int);
+void omap_pm_sys_offmode_pol(int);
+void omap_pm_sys_clkreq_pol(int);
+void omap_pm_auto_off(int);
+void omap_pm_auto_ret(int);
+
+
 extern void *omap3_secure_ram_storage;
 extern void omap3_pm_off_mode_enable(int);
 extern void omap_sram_idle(void);

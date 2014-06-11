@@ -1,4 +1,4 @@
-/*
+    /*
  * OMAP3 Power Management Routines
  *
  * Copyright (C) 2006-2008 Nokia Corporation
@@ -50,6 +50,9 @@
 #include "pm.h"
 #include "sdrc.h"
 #include "control.h"
+#include <linux/i2c/twl.h>
+
+#include "../../../drivers/video/omap2/dss/dss.h"
 
 #ifdef CONFIG_SUSPEND
 static suspend_state_t suspend_state = PM_SUSPEND_ON;
@@ -90,6 +93,8 @@ static int (*_omap_save_secure_sram)(u32 *addr);
 static struct powerdomain *mpu_pwrdm, *neon_pwrdm;
 static struct powerdomain *core_pwrdm, *per_pwrdm;
 static struct powerdomain *cam_pwrdm;
+static struct powerdomain *sgx_pwrdm,*dss_pwrdm, *iva2_pwrdm, *usbhost_pwrdm, *emu_pwrdm;
+
 
 static inline void omap3_per_save_context(void)
 {
@@ -109,7 +114,7 @@ static void omap3_enable_io_chain(void)
 		omap2_prm_set_mod_reg_bits(OMAP3430_EN_IO_CHAIN_MASK, WKUP_MOD,
 				     PM_WKEN);
 		/* Do a readback to assure write has been done */
-		omap2_prm_read_mod_reg(WKUP_MOD, PM_WKEN);
+        omap2_prm_read_mod_reg(WKUP_MOD, PM_WKEN);
 
 		while (!(omap2_prm_read_mod_reg(WKUP_MOD, PM_WKEN) &
 			 OMAP3430_ST_IO_CHAIN_MASK)) {
@@ -119,9 +124,9 @@ static void omap3_enable_io_chain(void)
 				       "activation failed.\n");
 				return;
 			}
-			omap2_prm_set_mod_reg_bits(OMAP3430_ST_IO_CHAIN_MASK,
-					     WKUP_MOD, PM_WKEN);
 		}
+        omap2_prm_set_mod_reg_bits(OMAP3430_ST_IO_CHAIN_MASK,
+                     WKUP_MOD, PM_WKEN);
 	}
 }
 
@@ -255,6 +260,36 @@ static int _prcm_int_handle_wakeup(void)
 	return c;
 }
 
+//----------------------------------------
+//  Clocks User Configuration
+//----------------------------------------
+void clockConf() {
+    u32 val;
+
+    // Disabling CAM_PRM
+    omap_writel(0x0, 0x48004F00);
+    omap_writel(0x0, 0x48004F10);
+    omap_writel(0x0, 0x48306FE0);
+    // Put DPLL3 in LP bypass mode
+//    val = omap_readl(0x48004D00);
+//    val &= ~0x7;
+//    val |= 0x5;
+//    omap_writel(val, 0x48004D00);
+
+    // Put DPLL2 in LP stop mode
+    omap_writel(0x1, 0x48004004);
+
+    // Disabling EMU & CAM clocks
+    val = omap_readl(0x48004D00);
+    val |= (3 << 30);
+    omap_writel(val, 0x48004D00);
+
+    // Put DPLL5 in LP stop mode
+    omap_writel(0x1, 0x48004D04);
+    //----------------------------------------
+
+}
+
 /*
  * PRCM Interrupt Handler
  *
@@ -336,6 +371,422 @@ static void restore_table_entry(void)
 	set_cr(control_reg_value);
 }
 
+void reg_padconf() {
+    u32 i;
+    for  (i = 0x48002030; i <= 0x480025F8; i += 4) {
+        if (i == 0x48002150) i = 0x48002158;
+        if (i == 0x480021E4) i = 0x48002260;
+        if (i == 0x48002268) i = 0x480025A0;
+        printk(KERN_INFO "0x%08x: 0x%08x\n", i, omap_readl(i));
+    }
+
+      printk(KERN_INFO "\n");
+
+    for  (i = 0x48002A00; i <= 0x48002A58; i += 4) {
+        printk(KERN_INFO "0x%08x: 0x%08x\n", i, omap_readl(i));
+    }
+}
+
+void HSUSBOTG_snapshot() {
+    printk(KERN_INFO "\n\nHSUSBOTG REGISTER SNAPSHOT\n");
+    printk(KERN_INFO "---------------------------------------\n");
+
+    printk(KERN_INFO "OTG_REVISION: %08x\n", 			omap_readl(0x480AB400));
+    printk(KERN_INFO "OTG_SYSCONFIG: %08x\n",           omap_readl(0x480AB404));
+    printk(KERN_INFO "OTG_SYSSTATUS: %08x\n", 			omap_readl(0x480AB408));
+    printk(KERN_INFO "OTG_INTERFSEL: %08x\n",       	omap_readl(0x480AB40C));
+    printk(KERN_INFO "OTG_SIMENABLE: %08x\n",        	omap_readl(0x480AB410));
+    printk(KERN_INFO "OTG_FORCESTDBY: %08x\n",      	omap_readl(0x480AB414));
+    printk(KERN_INFO "OTG_BIGENDIAN: %08x\n",           omap_readl(0x480AB418));
+}
+
+void gpio4_snapshot() {
+    printk(KERN_INFO "\n\nGPIO4 REGISTER SNAPSHOT\n");
+    printk(KERN_INFO "---------------------------------------\n");
+
+    printk(KERN_INFO "GPIO_REVISION: %08x\n", 			omap_readl(0x49054000));
+    printk(KERN_INFO "GPIO_SYSCONFIG: %08x\n",          omap_readl(0x49054010));
+    printk(KERN_INFO "GPIO_SYSSTATUS: %08x\n", 			omap_readl(0x49054014));
+    printk(KERN_INFO "GPIO_IRQSTATUS1: %08x\n", 		omap_readl(0x49054018));
+    printk(KERN_INFO "GPIO_IRQENABLE1: %08x\n",     	omap_readl(0x4905401C));
+    printk(KERN_INFO "GPIO_WAKEUPENABLE: %08x\n",   	omap_readl(0x49054020));
+    printk(KERN_INFO "GPIO_IRQSTATUS2: %08x\n",         omap_readl(0x49054028));
+    printk(KERN_INFO "GPIO_IRQENABLE2: %08x\n", 		omap_readl(0x4905402C));
+    printk(KERN_INFO "GPIO_CTRL: %08x\n",               omap_readl(0x49054030));
+    printk(KERN_INFO "GPIO_OE: %08x\n",                 omap_readl(0x49054034));
+    printk(KERN_INFO "GPIO_DATAIN: %08x\n", 			omap_readl(0x49054038));
+    printk(KERN_INFO "GPIO_DATAOUT: %08x\n",            omap_readl(0x4905403C));
+    printk(KERN_INFO "GPIO_LEVELDETECT0: %08x\n", 		omap_readl(0x49054040));
+    printk(KERN_INFO "GPIO_LEVELDETECT1: %08x\n", 		omap_readl(0x49054044));
+    printk(KERN_INFO "GPIO_RISINGDETECT: %08x\n",       omap_readl(0x49054048));
+    printk(KERN_INFO "GPIO_FALLINGDETECT: %08x\n", 		omap_readl(0x4905404C));
+    printk(KERN_INFO "GPIO_DEBOUNCENABLE: %08x\n", 		omap_readl(0x49054050));
+    printk(KERN_INFO "GPIO_DEBOUNCINGTIME: %08x\n", 	omap_readl(0x49054054));
+    printk(KERN_INFO "GPIO_CLEARIRQENABLE1: %08x\n", 	omap_readl(0x49054060));
+    printk(KERN_INFO "GPIO_SETIRQENABLE1: %08x\n", 		omap_readl(0x49054064));
+    printk(KERN_INFO "GPIO_CLEARIRQENABLE2: %08x\n", 	omap_readl(0x49054070));
+    printk(KERN_INFO "GPIO_SETIRQENABLE2: %08x\n", 		omap_readl(0x49054074));
+    printk(KERN_INFO "GPIO_CLEARWKUENA: %08x\n", 		omap_readl(0x49054080));
+    printk(KERN_INFO "GPIO_SETWKUENA: %08x\n",          omap_readl(0x49054084));
+    printk(KERN_INFO "GPIO_CLEARDATAOUT: %08x\n", 		omap_readl(0x49054090));
+    printk(KERN_INFO "GPIO_SETDATAOUT: %08x\n", 		omap_readl(0x49054094));
+    ;
+}
+
+//void dss_snapshot() {
+//    printk(KERN_INFO "\n\n DSS REGISTER SNAPSHOT\n");
+//    printk(KERN_INFO "---------------------------------------\n");
+
+//    printk(KERN_INFO "DSS_REVISIONNUMBER: %08x\n",          omap_readl(0x48050000));
+//    printk(KERN_INFO "DSS_SYSCONFIG: %08x\n",               omap_readl(0x48050010));
+//    printk(KERN_INFO "DSS_SYSSTATUS: %08x\n",               omap_readl(0x48050014));
+//    printk(KERN_INFO "DSS_IRQSTATUS: %08x\n",               omap_readl(0x48050018));
+//    printk(KERN_INFO "DSS_CONTROL: %08x\n",                 omap_readl(0x48050040));
+//    printk(KERN_INFO "DSS_CLK_STATUS: %08x\n",              omap_readl(0x4805005C));
+//    printk(KERN_INFO "DISPC_REVISION: %08x\n",              omap_readl(0x48050400));
+//    printk(KERN_INFO "DISPC_SYSCONFIG: %08x\n",             omap_readl(0x48050410));
+//    printk(KERN_INFO "DISPC_SYSSTATUS: %08x\n",             omap_readl(0x48050414));
+//    printk(KERN_INFO "DISPC_IRQSTATUS: %08x\n",             omap_readl(0x48050418));
+//    printk(KERN_INFO "DISPC_IRQENABLE: %08x\n",             omap_readl(0x4805041C));
+//    printk(KERN_INFO "DISPC_CONTROL: %08x\n",               omap_readl(0x48050440));
+//    printk(KERN_INFO "DISPC_CONFIG: %08x\n",                omap_readl(0x48050444));
+//    printk(KERN_INFO "DISPC_LINE_STATUS: %08x\n",           omap_readl(0x4805045C));
+//    printk(KERN_INFO "DISPC_LINE_NUMBER: %08x\n",           omap_readl(0x48050460));
+//    printk(KERN_INFO "DISPC_TIMING_H: %08x\n",              omap_readl(0x48050464));
+//    printk(KERN_INFO "DISPC_TIMING_V: %08x\n",              omap_readl(0x48050468));
+//    printk(KERN_INFO "DISPC_POL_FREQ: %08x\n",              omap_readl(0x4805046C));
+//    printk(KERN_INFO "DISPC_DIVISOR: %08x\n",               omap_readl(0x48050470));
+//    printk(KERN_INFO "DISPC_GLOBAL_ALPHA: %08x\n",          omap_readl(0x48050474));
+//    printk(KERN_INFO "DISPC_SIZE_DIG: %08x\n",              omap_readl(0x48050478));
+//    printk(KERN_INFO "DISPC_SIZE_LCD: %08x\n",              omap_readl(0x4805047C));
+//    printk(KERN_INFO "DISPC_GFX_POSITION: %08x\n",          omap_readl(0x48050488));
+//    printk(KERN_INFO "DISPC_GFX_SIZE: %08x\n",              omap_readl(0x4805048C));
+//    printk(KERN_INFO "DISPC_GFX_ATTRIBUTES: %08x\n", 		omap_readl(0x480504A0));
+//    printk(KERN_INFO "DISPC_GFX_FIFO_THRESHOLD: %08x\n", 	omap_readl(0x480504A4));
+//    printk(KERN_INFO "DISPC_GFX_FIFO_SIZE_STATUS: %08x\n", 	omap_readl(0x480504A8));
+//    printk(KERN_INFO "DISPC_GFX_ROW_INC: %08x\n",           omap_readl(0x480504AC));
+//    printk(KERN_INFO "DISPC_GFX_PIXEL_INC: %08x\n", 		omap_readl(0x480504B0));
+//    printk(KERN_INFO "DISPC_GFX_WINDOW_SKIP: %08x\n", 		omap_readl(0x480504B4));
+//    printk(KERN_INFO "DISPC_GFX_TABLE_BA: %08x\n",          omap_readl(0x480504B8));
+//    printk(KERN_INFO "DISPC_CPR_COEF_R: %08x\n",            omap_readl(0x48050620));
+//    printk(KERN_INFO "DISPC_CPR_COEF_G: %08x\n",            omap_readl(0x48050624));
+//    printk(KERN_INFO "DISPC_CPR_COEF_B: %08x\n", 			omap_readl(0x48050628));
+//    printk(KERN_INFO "DISPC_GFX_PRELOAD: %08x\n",           omap_readl(0x4805062C));
+//}
+
+void reg_snapshot() {
+    printk(KERN_INFO "\n\nREGISTER SNAPSHOT\n");
+    printk(KERN_INFO "---------------------------------------\n");
+
+    printk(KERN_INFO "\nIVA2_CM:\n");
+    printk(KERN_INFO "CM_FCLKEN_IVA2: %08x\n", 			omap_readl(0x48004000));
+    printk(KERN_INFO "CM_CLKEN_PLL_IVA2: %08x\n", 		omap_readl(0x48004004));
+    printk(KERN_INFO "CM_IDLEST_IVA2: %08x\n", 			omap_readl(0x48004020));
+    printk(KERN_INFO "CM_IDLEST_PLL_IVA2: %08x\n", 		omap_readl(0x48004024));
+    printk(KERN_INFO "CM_AUTOIDLE_PLL_IVA2: %08x\n", 	omap_readl(0x48004034));
+    printk(KERN_INFO "CM_CLKSEL1_PLL_IVA2: %08x\n", 	omap_readl(0x48004040));
+    printk(KERN_INFO "CM_CLKSEL2_PLL_IVA2: %08x\n", 	omap_readl(0x48004044));
+    printk(KERN_INFO "CM_CLKSTCTRL_IVA2: %08x\n", 		omap_readl(0x48004048));
+    printk(KERN_INFO "CM_CLKSTST_IVA2: %08x\n", 		omap_readl(0x4800404C));
+
+    printk(KERN_INFO "\nOCP_System_Reg_CM:\n");
+    printk(KERN_INFO "CM_REVISION: %08x\n", 			omap_readl(0x48004800));
+    printk(KERN_INFO "CM_SYSCONFIG: %08x\n", 			omap_readl(0x48004810));
+
+    printk(KERN_INFO "\nMPU_CM:\n");
+    printk(KERN_INFO "CM_CLKEN_PLL_MPU: %08x\n", 		omap_readl(0x48004904));
+    printk(KERN_INFO "CM_IDLEST_MPU: %08x\n", 			omap_readl(0x48004920));
+    printk(KERN_INFO "CM_IDLEST_PLL_MPU: %08x\n", 		omap_readl(0x48004924));
+    printk(KERN_INFO "CM_AUTOIDLE_PLL_MPU: %08x\n", 	omap_readl(0x48004934));
+    printk(KERN_INFO "CM_CLKSEL1_PLL_MPU: %08x\n", 		omap_readl(0x48004940));
+    printk(KERN_INFO "CM_CLKSEL2_PLL_MPU: %08x\n", 		omap_readl(0x48004944));
+    printk(KERN_INFO "CM_CLKSTCTRL_MPU: %08x\n", 		omap_readl(0x48004948));
+    printk(KERN_INFO "CM_CLKSTST_MPU: %08x\n", 			omap_readl(0x4800494C));
+
+    printk(KERN_INFO "\nCORE_CM:\n");
+    printk(KERN_INFO "CM_FCLKEN1_CORE: %08x\n", 		omap_readl(0x48004A00));
+    printk(KERN_INFO "CM_FCLKEN3_CORE: %08x\n", 		omap_readl(0x48004A08));
+    printk(KERN_INFO "CM_ICLKEN1_CORE: %08x\n", 		omap_readl(0x48004A10));
+    printk(KERN_INFO "CM_ICLKEN3_CORE: %08x\n", 		omap_readl(0x48004A18));
+    printk(KERN_INFO "CM_IDLEST1_CORE: %08x\n", 		omap_readl(0x48004A20));
+    printk(KERN_INFO "CM_IDLEST3_CORE: %08x\n", 		omap_readl(0x48004A28));
+    printk(KERN_INFO "CM_AUTOIDLE1_CORE: %08x\n", 		omap_readl(0x48004A30));
+    printk(KERN_INFO "CM_AUTOIDLE3_CORE: %08x\n", 		omap_readl(0x48004A38));
+    printk(KERN_INFO "CM_CLKSEL_CORE: %08x\n", 			omap_readl(0x48004A40));
+    printk(KERN_INFO "CM_CLKSTCTRL_CORE: %08x\n", 		omap_readl(0x48004A48));
+    printk(KERN_INFO "CM_CLKSTST_CORE: %08x\n", 		omap_readl(0x48004A4C));
+
+    printk(KERN_INFO "\nSGX_CM:\n");
+    printk(KERN_INFO "CM_FCLKEN_SGX: %08x\n", 			omap_readl(0x48004B00));
+    printk(KERN_INFO "CM_ICLKEN_SGX: %08x\n", 			omap_readl(0x48004B10));
+    printk(KERN_INFO "CM_IDLEST_SGX: %08x\n", 			omap_readl(0x48004B20));
+    printk(KERN_INFO "CM_CLKSEL_SGX: %08x\n", 			omap_readl(0x48004B40));
+    printk(KERN_INFO "CM_SLEEPDEP_SGX: %08x\n", 		omap_readl(0x48004B44));
+    printk(KERN_INFO "CM_CLKSTCTRL_SGX: %08x\n", 		omap_readl(0x48004B48));
+    printk(KERN_INFO "CM_CLKSTST_SGX: %08x\n", 			omap_readl(0x48004B4C));
+
+    printk(KERN_INFO "\nWKUP_CM:\n");
+    printk(KERN_INFO "CM_FCLKEN_WKUP: %08x\n", 			omap_readl(0x48004C00));
+    printk(KERN_INFO "CM_ICLKEN_WKUP: %08x\n", 			omap_readl(0x48004C10));
+    printk(KERN_INFO "CM_IDLEST_WKUP: %08x\n", 			omap_readl(0x48004C20));
+    printk(KERN_INFO "CM_AUTOIDLE_WKUP: %08x\n", 		omap_readl(0x48004C30));
+    printk(KERN_INFO "CM_CLKSEL_WKUP: %08x\n", 			omap_readl(0x48004C40));
+
+    printk(KERN_INFO "\nClock_Control_Reg_CM:\n");
+    printk(KERN_INFO "CM_CLKEN_PLL: %08x\n", 			omap_readl(0x48004D00));
+    printk(KERN_INFO "CM_CLKEN2_PLL: %08x\n", 			omap_readl(0x48004D04));
+    printk(KERN_INFO "CM_IDLEST_CKGEN: %08x\n", 		omap_readl(0x48004D20));
+    printk(KERN_INFO "CM_IDLEST2_CKGEN: %08x\n", 		omap_readl(0x48004D24));
+    printk(KERN_INFO "CM_AUTOIDLE_PLL: %08x\n", 		omap_readl(0x48004D30));
+    printk(KERN_INFO "CM_AUTOIDLE2_PLL: %08x\n", 		omap_readl(0x48004D34));
+    printk(KERN_INFO "CM_CLKSEL1_PLL: %08x\n", 			omap_readl(0x48004D40));
+    printk(KERN_INFO "CM_CLKSEL2_PLL: %08x\n", 			omap_readl(0x48004D44));
+    printk(KERN_INFO "CM_CLKSEL3_PLL: %08x\n", 			omap_readl(0x48004D48));
+    printk(KERN_INFO "CM_CLKSEL4_PLL: %08x\n", 			omap_readl(0x48004D4C));
+    printk(KERN_INFO "CM_CLKSEL5_PLL: %08x\n", 			omap_readl(0x48004D50));
+    printk(KERN_INFO "CM_CLKOUT_CTRL: %08x\n", 			omap_readl(0x48004D70));
+
+    printk(KERN_INFO "\nDSS_CM:\n");
+    printk(KERN_INFO "CM_FCLKEN_DSS: %08x\n", 			omap_readl(0x48004E00));
+    printk(KERN_INFO "CM_ICLKEN_DSS: %08x\n", 			omap_readl(0x48004E10));
+    printk(KERN_INFO "CM_IDLEST_DSS: %08x\n", 			omap_readl(0x48004E20));
+    printk(KERN_INFO "CM_AUTOIDLE_DSS: %08x\n", 		omap_readl(0x48004E30));
+    printk(KERN_INFO "CM_CLKSEL_DSS: %08x\n", 			omap_readl(0x48004E40));
+    printk(KERN_INFO "CM_SLEEPDEP_DSS: %08x\n", 		omap_readl(0x48004E44));
+    printk(KERN_INFO "CM_CLKSTCTRL_DSS: %08x\n", 		omap_readl(0x48004E48));
+    printk(KERN_INFO "CM_CLKSTST_DSS: %08x\n", 			omap_readl(0x48004E4C));
+
+    printk(KERN_INFO "\nCAM_CM:\n");
+    printk(KERN_INFO "CM_FCLKEN_CAM: %08x\n", 			omap_readl(0x48004F00));
+    printk(KERN_INFO "CM_ICLKEN_CAM: %08x\n", 			omap_readl(0x48004F10));
+    printk(KERN_INFO "CM_IDLEST_CAM: %08x\n", 			omap_readl(0x48004F20));
+    printk(KERN_INFO "CM_AUTOIDLE_CAM: %08x\n", 		omap_readl(0x48004F30));
+    printk(KERN_INFO "CM_CLKSEL_CAM: %08x\n", 			omap_readl(0x48004F40));
+    printk(KERN_INFO "CM_SLEEPDEP_CAM: %08x\n", 		omap_readl(0x48004F44));
+    printk(KERN_INFO "CM_CLKSTCTRL_CAM: %08x\n", 		omap_readl(0x48004F48));
+    printk(KERN_INFO "CM_CLKSTST_CAM: %08x\n", 			omap_readl(0x48004F4C));
+
+    printk(KERN_INFO "\nPER_CM:\n");
+    printk(KERN_INFO "CM_FCLKEN_PER: %08x\n", 			omap_readl(0x48005000));
+    printk(KERN_INFO "CM_ICLKEN_PER: %08x\n", 			omap_readl(0x48005010));
+    printk(KERN_INFO "CM_IDLEST_PER: %08x\n", 			omap_readl(0x48005020));
+    printk(KERN_INFO "CM_AUTOIDLE_PER: %08x\n", 		omap_readl(0x48005030));
+    printk(KERN_INFO "CM_CLKSEL_PER: %08x\n", 			omap_readl(0x48005040));
+    printk(KERN_INFO "CM_SLEEPDEP_PER: %08x\n", 		omap_readl(0x48005044));
+    printk(KERN_INFO "CM_CLKSTCTRL_PER: %08x\n", 		omap_readl(0x48005048));
+    printk(KERN_INFO "CM_CLKSTST_PER: %08x\n", 			omap_readl(0x4800504C));
+
+    printk(KERN_INFO "\nEMU_CM:\n");
+    printk(KERN_INFO "CM_CLKSEL1_EMU: %08x\n", 			omap_readl(0x48005140));
+    printk(KERN_INFO "CM_CLKSTCTRL_EMU: %08x\n", 		omap_readl(0x48005148));
+    printk(KERN_INFO "CM_CLKSTST_EMU: %08x\n", 			omap_readl(0x4800514C));
+    printk(KERN_INFO "CM_CLKSEL2_EMU: %08x\n", 			omap_readl(0x48005150));
+    printk(KERN_INFO "CM_CLKSEL3_EMU: %08x\n", 			omap_readl(0x48005154));
+
+    printk(KERN_INFO "\Global_Reg_CM:\n");
+    printk(KERN_INFO "CM_POLCTRL: %08x\n", 				omap_readl(0x4800529C));
+
+    printk(KERN_INFO "\NEON_CM:\n");
+    printk(KERN_INFO "CM_IDLEST_NEON: %08x\n", 			omap_readl(0x48005320));
+    printk(KERN_INFO "CM_CLKSTCTRL_NEON: %08x\n", 		omap_readl(0x48005348));
+
+    printk(KERN_INFO "\nUSBHOST_CM:\n");
+    printk(KERN_INFO "CM_FCLKEN_USBHOST: %08x\n", 		omap_readl(0x48005400));
+    printk(KERN_INFO "CM_ICLKEN_USBHOST: %08x\n", 		omap_readl(0x48005410));
+    printk(KERN_INFO "CM_IDLEST_USBHOST: %08x\n", 		omap_readl(0x48005420));
+    printk(KERN_INFO "CM_AUTOIDLE_USBHOST: %08x\n", 	omap_readl(0x48005430));
+    printk(KERN_INFO "CM_CLKSEL_USBHOST: %08x\n", 		omap_readl(0x48005440));
+    printk(KERN_INFO "CM_SLEEPDEP_USBHOST: %08x\n", 	omap_readl(0x48005444));
+    printk(KERN_INFO "CM_CLKSTCTRL_USBHOST: %08x\n", 	omap_readl(0x48005448));
+    printk(KERN_INFO "CM_CLKSTST_USBHOST: %08x\n", 		omap_readl(0x4800544C));
+
+    printk(KERN_INFO "\nIVA2_PRM:\n");
+    printk(KERN_INFO "RM_RSTCTRL_IVA2: %08x\n", 		omap_readl(0x48306050));
+    printk(KERN_INFO "RM_RSTST_IVA2: %08x\n", 			omap_readl(0x48306058));
+    printk(KERN_INFO "PM_WKDEP_IVA2: %08x\n", 			omap_readl(0x483060C8));
+    printk(KERN_INFO "PM_PWSTCTRL_IVA2: %08x\n", 		omap_readl(0x483060E0));
+    printk(KERN_INFO "PM_PWSTST_IVA2: %08x\n", 			omap_readl(0x483060E4));
+    printk(KERN_INFO "PM_PREPWSTST_IVA2: %08x\n", 		omap_readl(0x483060E8));
+    printk(KERN_INFO "PRM_IRQSTATUS_IVA2: %08x\n", 		omap_readl(0x483060F8));
+    printk(KERN_INFO "PRM_IRQENABLE_IVA2: %08x\n", 		omap_readl(0x483060FC));
+
+    printk(KERN_INFO "\nOCP_System_Reg_PRM:\n");
+    printk(KERN_INFO "PRM_REVISION: %08x\n", 			omap_readl(0x48306804));
+    printk(KERN_INFO "PRM_SYSCONFIG: %08x\n", 			omap_readl(0x48306814));
+    printk(KERN_INFO "PRM_IRQSTATUS_MPU: %08x\n", 		omap_readl(0x48306818));
+    printk(KERN_INFO "PRM_IRQENABLE_MPU : %08x\n", 		omap_readl(0x4830681C));
+
+    printk(KERN_INFO "\nMPU_PRM:\n");
+    printk(KERN_INFO "RM_RSTST_MPU: %08x\n", 			omap_readl(0x48306958));
+    printk(KERN_INFO "PM_WKDEP_MPU: %08x\n", 			omap_readl(0x483069C8));
+    printk(KERN_INFO "PM_EVGENCTRL_MPU: %08x\n", 		omap_readl(0x483069D4));
+    printk(KERN_INFO "PM_EVGENONTIM_MPU: %08x\n", 		omap_readl(0x483069D8));
+    printk(KERN_INFO "PM_EVGENOFFTIM_MPU : %08x\n", 	omap_readl(0x483069DC));
+    printk(KERN_INFO "PM_PWSTCTRL_MPU: %08x\n", 		omap_readl(0x483069E0));
+    printk(KERN_INFO "PM_PWSTST_MPU: %08x\n", 			omap_readl(0x483069E4));
+    printk(KERN_INFO "PM_PREPWSTST_MPU: %08x\n", 		omap_readl(0x483069E8));
+
+    printk(KERN_INFO "\nCORE_PRM:\n");
+    printk(KERN_INFO "RM_RSTST_CORE: %08x\n", 			omap_readl(0x48306A58));
+    printk(KERN_INFO "PM_WKEN1_CORE: %08x\n", 			omap_readl(0x48306AA0));
+    printk(KERN_INFO "PM_MPUGRPSEL1_CORE: %08x\n", 		omap_readl(0x48306AA4));
+    printk(KERN_INFO "PM_IVA2GRPSEL1_CORE: %08x\n", 	omap_readl(0x48306AA8));
+    printk(KERN_INFO "PM_WKST1_CORE: %08x\n", 			omap_readl(0x48306AB0));
+    printk(KERN_INFO "PM_WKST3_CORE: %08x\n", 			omap_readl(0x48306AB8));
+    printk(KERN_INFO "PM_PWSTCTRL_CORE: %08x\n", 		omap_readl(0x48306AE0));
+    printk(KERN_INFO "PM_PWSTST_CORE: %08x\n", 			omap_readl(0x48306AE4));
+    printk(KERN_INFO "PM_PREPWSTST_CORE: %08x\n", 		omap_readl(0x48306AE8));
+    printk(KERN_INFO "PM_WKEN3_CORE: %08x\n", 			omap_readl(0x48306AF0));
+    printk(KERN_INFO "PM_IVA2GRPSEL3_CORE: %08x\n", 	omap_readl(0x48306AF4));
+    printk(KERN_INFO "PM_MPUGRPSEL3_CORE: %08x\n", 		omap_readl(0x48306AF8));
+
+    printk(KERN_INFO "\nSGX_PRM:\n");
+    printk(KERN_INFO "RM_RSTST_SGX: %08x\n", 			omap_readl(0x48306B58));
+    printk(KERN_INFO "PM_WKDEP_SGX: %08x\n", 			omap_readl(0x48306BC8));
+    printk(KERN_INFO "PM_PWSTCTRL_SGX: %08x\n", 		omap_readl(0x48306BE0));
+    printk(KERN_INFO "PM_PWSTST_SGX: %08x\n", 			omap_readl(0x48306BE4));
+    printk(KERN_INFO "PM_PREPWSTST_SGX: %08x\n", 		omap_readl(0x48306BE8));
+
+    printk(KERN_INFO "\nWKUP_PRM:\n");
+    printk(KERN_INFO "PM_WKEN_WKUP: %08x\n", 			omap_readl(0x48306CA0));
+    printk(KERN_INFO "PM_MPUGRPSEL_WKUP: %08x\n", 		omap_readl(0x48306CA4));
+    printk(KERN_INFO "PM_IVA2GRPSEL_WKUP: %08x\n", 		omap_readl(0x48306CA8));
+    printk(KERN_INFO "PM_WKST_WKUP: %08x\n", 			omap_readl(0x48306CB0));
+
+    printk(KERN_INFO "\Clock_Control_Reg_PRM:\n");
+    printk(KERN_INFO "PRM_CLKSEL: %08x\n", 				omap_readl(0x48306D40));
+    printk(KERN_INFO "PRM_CLKOUT_CTRL: %08x\n", 		omap_readl(0x48306D70));
+
+    printk(KERN_INFO "\nDSS_PRM:\n");
+    printk(KERN_INFO "RM_RSTST_DSS: %08x\n", 			omap_readl(0x48306E58));
+    printk(KERN_INFO "PM_WKEN_DSS: %08x\n", 			omap_readl(0x48306EA0));
+    printk(KERN_INFO "PM_WKDEP_DSS: %08x\n", 			omap_readl(0x48306EC8));
+    printk(KERN_INFO "PM_PWSTCTRL_DSS: %08x\n", 		omap_readl(0x48306EE0));
+    printk(KERN_INFO "PM_PWSTST_DSS: %08x\n", 			omap_readl(0x48306EE4));
+    printk(KERN_INFO "PM_PREPWSTST_DSS: %08x\n", 		omap_readl(0x48306EE8));
+
+    printk(KERN_INFO "\nCAM_PRM:\n");
+    printk(KERN_INFO "RM_RSTST_CAM: %08x\n", 			omap_readl(0x48306F58));
+    printk(KERN_INFO "PM_WKDEP_CAM: %08x\n", 			omap_readl(0x48306FC8));
+    printk(KERN_INFO "PM_PWSTCTRL_CAM: %08x\n", 		omap_readl(0x48306FE0));
+    printk(KERN_INFO "PM_PWSTST_CAM: %08x\n", 			omap_readl(0x48306FE4));
+    printk(KERN_INFO "PM_PREPWSTST_CAM: %08x\n", 		omap_readl(0x48306FE8));
+
+    printk(KERN_INFO "\nPER_PRM:\n");
+    printk(KERN_INFO "RM_RSTST_PER: %08x\n", 			omap_readl(0x48307058));
+    printk(KERN_INFO "PM_WKEN_PER: %08x\n", 			omap_readl(0x483070A0));
+    printk(KERN_INFO "PM_MPUGRPSEL_PER: %08x\n", 		omap_readl(0x483070A4));
+    printk(KERN_INFO "PM_IVA2GRPSEL_PER: %08x\n", 		omap_readl(0x483070A8));
+    printk(KERN_INFO "PM_WKST_PER: %08x\n", 			omap_readl(0x483070B0));
+    printk(KERN_INFO "PM_WKDEP_PER: %08x\n", 			omap_readl(0x483070C8));
+    printk(KERN_INFO "PM_PWSTCTRL_PER: %08x\n", 		omap_readl(0x483070E0));
+    printk(KERN_INFO "PM_PWSTST_PER: %08x\n", 			omap_readl(0x483070E4));
+    printk(KERN_INFO "PM_PREPWSTST_PER: %08x\n", 		omap_readl(0x483070E8));
+
+    printk(KERN_INFO "\nEMU_PRM:\n");
+    printk(KERN_INFO "RM_RSTST_EMU: %08x\n", 			omap_readl(0x48307158));
+    printk(KERN_INFO "PM_PWSTST_EMU: %08x\n", 			omap_readl(0x483071E4));
+
+    printk(KERN_INFO "\nGlobal_Reg_PRM:\n");
+    printk(KERN_INFO "PRM_VC_SMPS_SA: %08x\n", 			omap_readl(0x48307220));
+    printk(KERN_INFO "PRM_VC_SMPS_VOL_RA: %08x\n", 		omap_readl(0x48307224));
+    printk(KERN_INFO "PRM_VC_SMPS_CMD_RA: %08x\n", 		omap_readl(0x48307228));
+    printk(KERN_INFO "PRM_VC_CMD_VAL_0: %08x\n", 		omap_readl(0x4830722C));
+    printk(KERN_INFO "PRM_VC_CMD_VAL_1: %08x\n", 		omap_readl(0x48307230));
+    printk(KERN_INFO "PRM_VC_CH_CONF: %08x\n", 			omap_readl(0x48307234));
+    printk(KERN_INFO "PRM_VC_I2C_CFG: %08x\n", 			omap_readl(0x48307238));
+    printk(KERN_INFO "PRM_VC_BYPASS_VAL: %08x\n", 		omap_readl(0x4830723C));
+    printk(KERN_INFO "PRM_RSTCTRL: %08x\n", 			omap_readl(0x48307250));
+    printk(KERN_INFO "PRM_RSTTIME: %08x\n", 			omap_readl(0x48307254));
+    printk(KERN_INFO "PRM_RSTST: %08x\n", 				omap_readl(0x48307258));
+    printk(KERN_INFO "PRM_VOLTCTRL: %08x\n", 			omap_readl(0x48307260));
+    printk(KERN_INFO "PRM_SRAM_PCHARGE: %08x\n", 		omap_readl(0x48307264));
+    printk(KERN_INFO "PRM_CLKSRC_CTRL: %08x\n", 		omap_readl(0x48307270));
+    printk(KERN_INFO "PRM_OBS: %08x\n", 				omap_readl(0x48307280));
+    printk(KERN_INFO "PRM_VOLTSETUP1: %08x\n", 			omap_readl(0x48307290));
+    printk(KERN_INFO "PRM_VOLTOFFSET: %08x\n", 			omap_readl(0x48307294));
+    printk(KERN_INFO "PRM_CLKSETUP: %08x\n", 			omap_readl(0x48307298));
+    printk(KERN_INFO "PRM_POLCTRL: %08x\n", 			omap_readl(0x4830729C));
+    printk(KERN_INFO "PRM_VOLTSETUP2: %08x\n", 			omap_readl(0x483072A0));
+    printk(KERN_INFO "PRM_VP1_CONFIG: %08x\n", 			omap_readl(0x483072B0));
+    printk(KERN_INFO "PRM_VP1_VSTEPMIN: %08x\n", 		omap_readl(0x483072B4));
+    printk(KERN_INFO "PRM_VP1_VSTEPMAX: %08x\n", 		omap_readl(0x483072B8));
+    printk(KERN_INFO "PRM_VP1_VLIMITTO: %08x\n", 		omap_readl(0x483072BC));
+    printk(KERN_INFO "PRM_VP1_VOLTAGE: %08x\n", 		omap_readl(0x483072C0));
+    printk(KERN_INFO "PRM_VP1_STATUS: %08x\n", 			omap_readl(0x483072C4));
+    printk(KERN_INFO "PRM_VP2_CONFIG: %08x\n", 			omap_readl(0x483072D0));
+    printk(KERN_INFO "PRM_VP2_VSTEPMIN: %08x\n", 		omap_readl(0x483072D4));
+    printk(KERN_INFO "PRM_VP2_VSTEPMAX: %08x\n", 		omap_readl(0x483072D8));
+    printk(KERN_INFO "PRM_VP2_VLIMITTO: %08x\n", 		omap_readl(0x483072DC));
+    printk(KERN_INFO "PRM_VP2_VOLTAGE: %08x\n", 		omap_readl(0x483072E0));
+    printk(KERN_INFO "PRM_VP2_STATUS: %08x\n", 			omap_readl(0x483072E4));
+    printk(KERN_INFO "PRM_LDO_ABB_SETUP: %08x\n", 		omap_readl(0x483072F0));
+    printk(KERN_INFO "PRM_LDO_ABB_CTRL: %08x\n", 		omap_readl(0x483072F4));
+
+    printk(KERN_INFO "\NEON_PRM:\n");
+    printk(KERN_INFO "RM_RSTST_NEON: %08x\n", 			omap_readl(0x48307358));
+    printk(KERN_INFO "PM_WKDEP_NEON: %08x\n", 			omap_readl(0x483073C8));
+    printk(KERN_INFO "PM_PWSTCTRL_NEON: %08x\n", 		omap_readl(0x483073E0));
+    printk(KERN_INFO "PM_PWSTST_NEON: %08x\n", 			omap_readl(0x483073E4));
+    printk(KERN_INFO "PM_PREPWSTST_NEON: %08x\n", 		omap_readl(0x483073E8));
+
+    printk(KERN_INFO "\nUSBHOST_PRM:\n");
+    printk(KERN_INFO "RM_RSTST_USBHOST: %08x\n", 		omap_readl(0x48307458));
+    printk(KERN_INFO "PM_WKEN_USBHOST: %08x\n", 		omap_readl(0x483074A0));
+    printk(KERN_INFO "PM_MPUGRPSEL_USBHOST: %08x\n", 	omap_readl(0x483074A4));
+    printk(KERN_INFO "PM_IVA2GRPSEL_USBHOST: %08x\n", 	omap_readl(0x483074A8));
+    printk(KERN_INFO "PM_WKST_USBHOST: %08x\n", 		omap_readl(0x483074B0));
+    printk(KERN_INFO "PM_WKDEP_USBHOST: %08x\n", 		omap_readl(0x483074C8));
+    printk(KERN_INFO "PM_PWSTCTRL_USBHOST: %08x\n", 	omap_readl(0x483074E0));
+    printk(KERN_INFO "PM_PWSTST_USBHOST: %08x\n", 		omap_readl(0x483074E4));
+    printk(KERN_INFO "PM_PREPWSTST_USBHOST: %08x\n", 	omap_readl(0x483074E8));
+
+    printk(KERN_INFO "CONTROL_PROG_IO_WKUP1: %08x\n", 	omap_readl(0x48002A80));
+    printk(KERN_INFO "CONTROL_SYSCONFIG: %08x\n",   	omap_readl(0x48002010));
+    //printk(KERN_INFO "SYSC_REG_UART3: %08x\n",          omap_readl(0x49020054));
+    //printk(KERN_INFO "SYSC_REG_UART4: %08x\n",          omap_readl(0x49042054));
+
+}
+
+void pm_nextstates_reg_dump() {
+    printk(KERN_INFO "\nPOWERDOMAIN NEXT STATES:\n");
+    printk(KERN_INFO "PM_PWSTCTRL_MPU: 0x%08x\n",       omap_readl(0x483069E0));
+    printk(KERN_INFO "PM_PWSTCTRL_CORE: 0x%08x\n",      omap_readl(0x48306AE0));
+    printk(KERN_INFO "PM_PWSTCTRL_SGX: 0x%08x\n",       omap_readl(0x48306BE0));
+    printk(KERN_INFO "PM_PWSTCTRL_DSS: 0x%08x\n",       omap_readl(0x48306EE0));
+    printk(KERN_INFO "PM_PWSTCTRL_CAM: 0x%08x\n",       omap_readl(0x48306FE0));
+    printk(KERN_INFO "PM_PWSTCTRL_PER: 0x%08x\n",       omap_readl(0x483070E0));
+    printk(KERN_INFO "PM_PWSTCTRL_NEON: 0x%08x\n",      omap_readl(0x483073E0));
+    printk(KERN_INFO "PM_PWSTCTRL_IVA2: 0x%08x\n",      omap_readl(0x483060E0));
+    printk(KERN_INFO "PM_PWSTCTRL_USBHOST: 0x%08x\n",   omap_readl(0x483074E0));
+}
+
+void pm_currstates_reg_dump() {
+    printk(KERN_INFO "\nPOWERDOMAIN CURR STATES:\n");
+    printk(KERN_INFO "PM_PWSTST_MPU: 0x%08x\n",       omap_readl(0x483069E4));
+    printk(KERN_INFO "PM_PWSTST_CORE: 0x%08x\n",      omap_readl(0x48306AE4));
+    printk(KERN_INFO "PM_PWSTST_SGX: 0x%08x\n",       omap_readl(0x48306BE4));
+    printk(KERN_INFO "PM_PWSTST_DSS: 0x%08x\n",       omap_readl(0x48306EE4));
+    printk(KERN_INFO "PM_PWSTST_CAM: 0x%08x\n",       omap_readl(0x48306FE4));
+    printk(KERN_INFO "PM_PWSTST_PER: 0x%08x\n",       omap_readl(0x483070E4));
+    printk(KERN_INFO "PM_PWSTST_NEON: 0x%08x\n",      omap_readl(0x483073E4));
+    printk(KERN_INFO "PM_PWSTST_IVA2: 0x%08x\n",      omap_readl(0x483060E4));
+    printk(KERN_INFO "PM_PWSTST_USBHOST: 0x%08x\n",   omap_readl(0x483074E4));
+}
+
+void pm_prevstates_reg_dump() {
+    printk(KERN_INFO "\nPOWERDOMAIN PREV STATES:\n");
+    printk(KERN_INFO "PM_PREPWSTST_MPU: 0x%08x\n",       omap_readl(0x483069E8));
+    printk(KERN_INFO "PM_PREPWSTST_CORE: 0x%08x\n",      omap_readl(0x48306AE8));
+    printk(KERN_INFO "PM_PREPWSTST_SGX: 0x%08x\n",       omap_readl(0x48306BE8));
+    printk(KERN_INFO "PM_PREPWSTST_DSS: 0x%08x\n",       omap_readl(0x48306EE8));
+    printk(KERN_INFO "PM_PREPWSTST_CAM: 0x%08x\n",       omap_readl(0x48306FE8));
+    printk(KERN_INFO "PM_PREPWSTST_PER: 0x%08x\n",       omap_readl(0x483070E8));
+    printk(KERN_INFO "PM_PREPWSTST_NEON: 0x%08x\n",      omap_readl(0x483073E8));
+    printk(KERN_INFO "PM_PREPWSTST_IVA2: 0x%08x\n",      omap_readl(0x483060E8));
+    printk(KERN_INFO "PM_PREPWSTST_USBHOST: 0x%08x\n",   omap_readl(0x483074E8));
+}
+
 void omap_sram_idle(void)
 {
 	/* Variable to tell what needs to be saved and restored
@@ -350,9 +801,15 @@ void omap_sram_idle(void)
 	int core_next_state = PWRDM_POWER_ON;
 	int per_going_off;
 	int core_prev_state, per_prev_state;
-	u32 sdrc_pwr = 0;
+    u32 sdrc_pwr = 0;
 
-	if (!_omap_sram_idle)
+    int nextstate;
+    u32 val;
+
+    omap3_pm_off_mode_enable(1);
+    omap_clk_enable_autoidle_all();
+
+    if (!_omap_sram_idle)
 		return;
 
 	pwrdm_clear_all_prev_pwrst(mpu_pwrdm);
@@ -381,15 +838,15 @@ void omap_sram_idle(void)
 	if (pwrdm_read_pwrst(neon_pwrdm) == PWRDM_POWER_ON)
 		pwrdm_set_next_pwrst(neon_pwrdm, mpu_next_state);
 
-	/* Enable IO-PAD and IO-CHAIN wakeups */
-	per_next_state = pwrdm_read_next_pwrst(per_pwrdm);
-	core_next_state = pwrdm_read_next_pwrst(core_pwrdm);
-	if (omap3_has_io_wakeup() &&
-	    (per_next_state < PWRDM_POWER_ON ||
-	     core_next_state < PWRDM_POWER_ON)) {
-		omap2_prm_set_mod_reg_bits(OMAP3430_EN_IO_MASK, WKUP_MOD, PM_WKEN);
-		omap3_enable_io_chain();
-	}
+    /* Enable IO-PAD and IO-CHAIN wakeups */
+    per_next_state = pwrdm_read_next_pwrst(per_pwrdm);
+    core_next_state = pwrdm_read_next_pwrst(core_pwrdm);
+    if (omap3_has_io_wakeup() &&
+        (per_next_state < PWRDM_POWER_ON ||
+         core_next_state < PWRDM_POWER_ON)) {
+        omap2_prm_set_mod_reg_bits(OMAP3430_EN_IO_MASK, WKUP_MOD, PM_WKEN);
+        omap3_enable_io_chain();
+    }
 
 	/* Block console output in case it is on one of the OMAP UARTs */
 	if (!is_suspending())
@@ -402,7 +859,7 @@ void omap_sram_idle(void)
 	if (per_next_state < PWRDM_POWER_ON) {
 		per_going_off = (per_next_state == PWRDM_POWER_OFF) ? 1 : 0;
 		omap_uart_prepare_idle(2);
-		omap_uart_prepare_idle(3);
+        omap_uart_prepare_idle(3);
 		omap2_gpio_prepare_for_idle(per_going_off);
 		if (per_next_state == PWRDM_POWER_OFF)
 				omap3_per_save_context();
@@ -418,7 +875,7 @@ void omap_sram_idle(void)
 		}
 	}
 
-	omap3_intc_prepare_idle();
+    omap3_intc_prepare_idle();
 
 	/*
 	* On EMU/HS devices ROM code restores a SRDC value
@@ -436,6 +893,35 @@ void omap_sram_idle(void)
 	 * get saved. The restore path then reads from this
 	 * location and restores them back.
 	 */
+
+    // Disable HSOTGUSB
+    val = omap_readl(0x48004A10);
+    val &= ~ (1 << 4);
+    omap_writel(val, 0x48004A10);
+
+    omap_writel(0x400, 0x49054060);
+    omap_writel(0, 0x480AB404);
+    omap_writel(1, 0x480AB414);
+
+
+//    printk(KERN_INFO "NEW CM_ICLKEN1_CORE: 0x%08x\n", val);
+
+    val = omap_readl(0x48306AA0);
+    val &= ~ (1 << 4);
+    omap_writel(val, 0x48306AA0);
+
+    val = omap_readl(0x48306AA4);
+    val &= ~ (1 << 4);
+    omap_writel(val, 0x48306AA4);
+
+
+
+    gpio4_snapshot();
+    HSUSBOTG_snapshot();
+    //reg_snapshot();
+
+   // dss_suspend_all_devices();
+    //dss_snapshot();
 	_omap_sram_idle(omap3_arm_context, save_state);
 	cpu_init();
 
@@ -460,11 +946,9 @@ void omap_sram_idle(void)
 		}
 		omap_uart_resume_idle(0);
 		omap_uart_resume_idle(1);
-		if (core_next_state == PWRDM_POWER_OFF)
-			omap2_prm_clear_mod_reg_bits(OMAP3430_AUTO_OFF_MASK,
-					       OMAP3430_GR_MOD,
-					       OMAP3_PRM_VOLTCTRL_OFFSET);
-	}
+        // if (core_next_state == PWRDM_POWER_OFF)  omap_writel(0x8, 0x48307260);
+//           omap2_prm_clear_mod_reg_bits(OMAP3430_AUTO_OFF_MASK, OMAP3430_GR_MOD, OMAP3_PRM_VOLTCTRL_OFFSET);
+    }
 	omap3_intc_resume_idle();
 
 	/* PER */
@@ -480,6 +964,22 @@ void omap_sram_idle(void)
 	if (!is_suspending())
 		console_unlock();
 
+    printk(KERN_INFO "\nWAKEUPSTATUS:\n");
+    printk(KERN_INFO "PM_WKST1_CORE: 0x%08x\n",     omap_readl(0x48306AB0));
+    printk(KERN_INFO "PM_WKST3_CORE: 0x%08x\n",     omap_readl(0x48306AB8));
+    printk(KERN_INFO "PM_WKST_WKUP: 0x%08x\n",      omap_readl(0x48306CB0));
+    printk(KERN_INFO "PM_WKST_PER: 0x%08x\n",       omap_readl(0x483070B0));
+    printk(KERN_INFO "PM_WKST_USBHOST: 0x%08x\n",   omap_readl(0x483074B0));
+
+
+   // dss_resume_all_devices();
+
+    pm_prevstates_reg_dump();
+
+    //dss_snapshot();
+    //dss_restore_context();
+    //clockConf();
+
 console_still_active:
 	/* Disable IO-PAD and IO-CHAIN wakeup */
 	if (omap3_has_io_wakeup() &&
@@ -492,7 +992,7 @@ console_still_active:
 
 	pwrdm_post_transition();
 
-	clkdm_allow_idle(mpu_pwrdm->pwrdm_clkdms[0]);
+    clkdm_allow_idle(mpu_pwrdm->pwrdm_clkdms[0]);
 }
 
 int omap3_can_sleep(void)
@@ -518,7 +1018,7 @@ static void omap3_pm_idle(void)
 	trace_power_start(POWER_CSTATE, 1, smp_processor_id());
 	trace_cpu_idle(1, smp_processor_id());
 
-	omap_sram_idle();
+    omap_sram_idle();
 
 	trace_power_end(smp_processor_id());
 	trace_cpu_idle(PWR_EVENT_EXIT, smp_processor_id());
@@ -533,6 +1033,8 @@ static int omap3_pm_suspend(void)
 {
 	struct power_state *pwrst;
 	int state, ret = 0;
+
+    //disable_irq(266);
 
 	/* Read current next_pwrsts */
 	list_for_each_entry(pwrst, &pwrst_list, node)
@@ -568,6 +1070,11 @@ restore:
 		printk(KERN_INFO "Successfully put all powerdomains "
 		       "to target state\n");
 
+
+    omap_writel(0x2, 0x483060F8);
+    printk(KERN_INFO "IVA_WKST: 0x%08x\n",   omap_readl(0x483060F8));
+    omap_writel(0x00107d17, 0x48004940);
+    printk(KERN_INFO "CM_CLKSEL1_PLL_MPU: 0x%08x\n",   omap_readl(0x48004940));
 	return ret;
 }
 
@@ -578,6 +1085,8 @@ static int omap3_pm_enter(suspend_state_t unused)
 	switch (suspend_state) {
 	case PM_SUSPEND_STANDBY:
 	case PM_SUSPEND_MEM:
+
+       //reg_snapshot();
 		ret = omap3_pm_suspend();
 		break;
 	default:
@@ -691,8 +1200,24 @@ static void __init prcm_setup_regs(void)
 	u32 omap3630_grpsel_uart4_mask = cpu_is_omap3630() ?
 					OMAP3630_GRPSEL_UART4_MASK : 0;
 
+    u32 val;
+
+    /* XXX Reset all wkdeps. This should be done when initializing
+         * powerdomains */
+        omap2_prm_write_mod_reg(0, OMAP3430_IVA2_MOD, PM_WKDEP);
+        omap2_prm_write_mod_reg(0, MPU_MOD, PM_WKDEP);
+        omap2_prm_write_mod_reg(0, OMAP3430_DSS_MOD, PM_WKDEP);
+        omap2_prm_write_mod_reg(0, OMAP3430_NEON_MOD, PM_WKDEP);
+        omap2_prm_write_mod_reg(0, OMAP3430_CAM_MOD, PM_WKDEP);
+        omap2_prm_write_mod_reg(0, OMAP3430_PER_MOD, PM_WKDEP);
+        if (omap_rev() > OMAP3430_REV_ES1_0) {
+            omap2_prm_write_mod_reg(0, OMAP3430ES2_SGX_MOD, PM_WKDEP);
+            omap2_prm_write_mod_reg(0, OMAP3430ES2_USBHOST_MOD, PM_WKDEP);
+        } else
+            omap2_prm_write_mod_reg(0, GFX_MOD, PM_WKDEP);
+
 	/* XXX This should be handled by hwmod code or SCM init code */
-	omap_ctrl_writel(OMAP3430_AUTOIDLE_MASK, OMAP2_CONTROL_SYSCONFIG);
+    omap_ctrl_writel(OMAP3430_AUTOIDLE_MASK, OMAP2_CONTROL_SYSCONFIG);
 
 	/*
 	 * Enable control of expternal oscillator through
@@ -705,15 +1230,17 @@ static void __init prcm_setup_regs(void)
 			     OMAP3_PRM_CLKSRC_CTRL_OFFSET);
 
 	/* setup wakup source */
-	omap2_prm_write_mod_reg(OMAP3430_EN_IO_MASK | OMAP3430_EN_GPIO1_MASK |
-			  OMAP3430_EN_GPT1_MASK | OMAP3430_EN_GPT12_MASK,
+    omap2_prm_write_mod_reg(OMAP3430_EN_IO_MASK | OMAP3430_EN_GPIO1_MASK /*|
+              OMAP3430_EN_GPT1_MASK | OMAP3430_EN_GPT12_MASK*/,
 			  WKUP_MOD, PM_WKEN);
 	/* No need to write EN_IO, that is always enabled */
-	omap2_prm_write_mod_reg(OMAP3430_GRPSEL_GPIO1_MASK |
+    omap2_prm_write_mod_reg(OMAP3430_GRPSEL_GPIO1_MASK/* |
 			  OMAP3430_GRPSEL_GPT1_MASK |
-			  OMAP3430_GRPSEL_GPT12_MASK,
+              OMAP3430_GRPSEL_GPT12_MASK*/,
 			  WKUP_MOD, OMAP3430_PM_MPUGRPSEL);
-	/* For some reason IO doesn't generate wakeup event even if
+
+    //omap_writel(0, 0x48306CA0);
+    /* For some reason IO doesn't generate wakeup event even if
 	 * it is selected to mpu wakeup goup */
 	omap2_prm_write_mod_reg(OMAP3430_IO_EN_MASK | OMAP3430_WKUP_EN_MASK,
 			  OCP_MOD, OMAP3_PRM_IRQENABLE_MPU_OFFSET);
@@ -763,6 +1290,7 @@ static void __init prcm_setup_regs(void)
 
 	omap3_iva_idle();
 	omap3_d2d_idle();
+
 }
 
 void omap3_pm_off_mode_enable(int enable)
@@ -824,13 +1352,13 @@ static int __init pwrdms_setup(struct powerdomain *pwrdm, void *unused)
 	if (!pwrst)
 		return -ENOMEM;
 	pwrst->pwrdm = pwrdm;
-	pwrst->next_state = PWRDM_POWER_RET;
+    pwrst->next_state = PWRDM_POWER_RET;
 	list_add(&pwrst->node, &pwrst_list);
 
 	if (pwrdm_has_hdwr_sar(pwrdm))
 		pwrdm_enable_hdwr_sar(pwrdm);
 
-	return omap_set_pwrdm_state(pwrst->pwrdm, pwrst->next_state);
+    return omap_set_pwrdm_state(pwrst->pwrdm, pwrst->next_state);
 }
 
 /*
@@ -883,7 +1411,7 @@ static int __init omap3_pm_init(void)
 	 * supervised mode for powerdomains */
 	prcm_setup_regs();
 
-	ret = request_irq(INT_34XX_PRCM_MPU_IRQ,
+    ret = request_irq(INT_34XX_PRCM_MPU_IRQ,
 			  (irq_handler_t)prcm_interrupt_handler,
 			  IRQF_DISABLED, "prcm", NULL);
 	if (ret) {
@@ -910,6 +1438,13 @@ static int __init omap3_pm_init(void)
 	per_pwrdm = pwrdm_lookup("per_pwrdm");
 	core_pwrdm = pwrdm_lookup("core_pwrdm");
 	cam_pwrdm = pwrdm_lookup("cam_pwrdm");
+
+    dss_pwrdm = pwrdm_lookup("dss_pwrdm");
+    sgx_pwrdm = pwrdm_lookup("sgx_pwrdm");
+    iva2_pwrdm = pwrdm_lookup("iva2_pwrdm");
+
+    emu_pwrdm = pwrdm_lookup("emu_pwrdm");
+    usbhost_pwrdm = pwrdm_lookup("usbhost_pwrdm");
 
 	neon_clkdm = clkdm_lookup("neon_clkdm");
 	mpu_clkdm = clkdm_lookup("mpu_clkdm");
@@ -952,6 +1487,10 @@ static int __init omap3_pm_init(void)
 	}
 
 	omap3_save_scratchpad_contents();
+
+    clockConf();
+
+    pm_currstates_reg_dump();
 err1:
 	return ret;
 err2:
@@ -962,5 +1501,104 @@ err2:
 	}
 	return ret;
 }
+
+static void omap3logic_pm_init(void)
+{
+    printk(KERN_INFO "\n omap3logic_pm_init \n");
+
+    /* Using sys_offmode signal */
+    omap_pm_sys_offmode_select(1);
+
+    /* sys_clkreq - active high */
+    omap_pm_sys_clkreq_pol(1);
+
+    /* sys_offmode - active low */
+    omap_pm_sys_offmode_pol(1);
+
+    /* Automatically send OFF command */
+    omap_pm_auto_off(1);
+
+    /* Automatically send RET command */
+    omap_pm_auto_ret(0);
+}
+
+
+/** Select whether OFF command is sent via I2C
+ * 1 - Yes. Command is automatically send when the voltage
+ *     domain is in the appropriate standby mode.
+ * 0 - No. Command is not sent
+ */
+void omap_pm_auto_off(int flag)
+{
+    if (flag)
+        omap2_prm_set_mod_reg_bits(OMAP3430_AUTO_OFF_MASK,
+                    OMAP3430_GR_MOD, OMAP3_PRM_VOLTCTRL_OFFSET);
+    else
+        omap2_prm_clear_mod_reg_bits(OMAP3430_AUTO_OFF_MASK,
+                    OMAP3430_GR_MOD, OMAP3_PRM_VOLTCTRL_OFFSET);
+}
+
+/**
+ * Select whether RET command is sent via I2C
+ * 1 - Yes. Command is automatically send when the voltage
+ *     domain is in the appropriate standby mode.
+ * 0 - No. Command is not sent
+ */
+void omap_pm_auto_ret(int flag)
+{
+    if (flag)
+        omap2_prm_set_mod_reg_bits(OMAP3430_AUTO_RET_MASK,
+                    OMAP3430_GR_MOD, OMAP3_PRM_VOLTCTRL_OFFSET);
+    else
+        omap2_prm_clear_mod_reg_bits(OMAP3430_AUTO_RET_MASK,
+                    OMAP3430_GR_MOD, OMAP3_PRM_VOLTCTRL_OFFSET);
+}
+
+/**
+ * Select whether sys_offmode is asserted
+ * 1 - Yes. sys_offmode is asserted
+ * 0 - No. OFF command is sent through I2C
+ */
+void omap_pm_sys_offmode_select(int flag)
+{
+    if (flag)
+        omap2_prm_set_mod_reg_bits(OMAP3430_SEL_OFF_MASK,
+                    OMAP3430_GR_MOD, OMAP3_PRM_VOLTCTRL_OFFSET);
+    else
+        omap2_prm_clear_mod_reg_bits(OMAP3430_SEL_OFF_MASK,
+                    OMAP3430_GR_MOD, OMAP3_PRM_VOLTCTRL_OFFSET);
+}
+
+/**
+ * Select the polarity of sys_offmode signal
+ * 1 - sys_offmode is active high
+ * 0 - sys_offmode is active low
+ */
+void omap_pm_sys_offmode_pol(int flag)
+{
+    if (flag)
+        omap2_prm_set_mod_reg_bits(OMAP3430_OFFMODE_POL_MASK,
+                    OMAP3430_GR_MOD, OMAP3_PRM_POLCTRL_OFFSET);
+    else
+        omap2_prm_clear_mod_reg_bits(OMAP3430_OFFMODE_POL_MASK,
+                    OMAP3430_GR_MOD, OMAP3_PRM_POLCTRL_OFFSET);
+}
+
+/**
+ * Select the polarity of sys_clkreq signal
+ * 1 - sys_clkreq is active high
+ * 0 - sys_clkreq is active low
+ */
+void omap_pm_sys_clkreq_pol(int flag)
+{
+    if (flag)
+        omap2_prm_set_mod_reg_bits(OMAP3430_CLKREQ_POL_MASK,
+                    OMAP3430_GR_MOD, OMAP3_PRM_POLCTRL_OFFSET);
+    else
+        omap2_prm_clear_mod_reg_bits(OMAP3430_CLKREQ_POL_MASK,
+                    OMAP3430_GR_MOD, OMAP3_PRM_POLCTRL_OFFSET);
+ }
+
+
 
 late_initcall(omap3_pm_init);

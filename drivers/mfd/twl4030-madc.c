@@ -201,9 +201,13 @@ static int twl4030battery_current(int raw_volt)
 	if (ret)
 		return ret;
 	if (val & TWL4030_BCI_CGAIN) /* slope of 0.44 mV/mA */
-		return (raw_volt * CURR_STEP_SIZE) / CURR_PSR_R1;
+        ret = (raw_volt * CURR_STEP_SIZE) / CURR_PSR_R1;
 	else /* slope of 0.88 mV/mA */
-		return (raw_volt * CURR_STEP_SIZE) / CURR_PSR_R2;
+        ret = (raw_volt * CURR_STEP_SIZE) / CURR_PSR_R2;
+
+    //printk("twl4030battery_current ret=%d \n", ret);
+
+    return ret;
 }
 /*
  * Function to read channel values

@@ -17,6 +17,7 @@ static int sr_class3_enable(struct voltagedomain *voltdm)
 {
 	unsigned long volt = voltdm_get_voltage(voltdm);
 
+    printk(KERN_INFO "sr_class3_enable\n");
 	if (!volt) {
 		pr_warning("%s: Curr voltage unknown. Cannot enable sr_%s\n",
 				__func__, voltdm->name);

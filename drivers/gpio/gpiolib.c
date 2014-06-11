@@ -1040,16 +1040,19 @@ int gpiochip_add(struct gpio_chip *chip)
 	if ((!gpio_is_valid(base) || !gpio_is_valid(base + chip->ngpio - 1))
 			&& base >= 0) {
 		status = -EINVAL;
-		goto fail;
+        printk("%s gpio_is_valid status %d \n", __func__, status);
+        goto fail;
 	}
 
 	spin_lock_irqsave(&gpio_lock, flags);
 
 	if (base < 0) {
 		base = gpiochip_find_base(chip->ngpio);
-		if (base < 0) {
+        printk("%s gpiochip_find_base base %d \n", __func__, base);
+        if (base < 0) {
 			status = base;
-			goto unlock;
+            printk("%s gpiochip_find_base status %d \n", __func__, status);
+            goto unlock;
 		}
 		chip->base = base;
 	}
@@ -1058,7 +1061,8 @@ int gpiochip_add(struct gpio_chip *chip)
 	for (id = base; id < base + chip->ngpio; id++) {
 		if (gpio_desc[id].chip != NULL) {
 			status = -EBUSY;
-			break;
+            printk("%s gpio_desc id %d status %d \n", __func__, id, status);
+            break;
 		}
 	}
 	if (status == 0) {
@@ -1082,17 +1086,19 @@ int gpiochip_add(struct gpio_chip *chip)
 unlock:
 	spin_unlock_irqrestore(&gpio_lock, flags);
 
-	if (status)
+    printk("%s unlock status %d \n", __func__, status);
+    if (status)
 		goto fail;
 
 	status = gpiochip_export(chip);
-	if (status)
-		goto fail;
+    printk("%s gpiochip_export status %d \n", __func__, status);
+    if (status)
+        goto fail;
 
 	return 0;
 fail:
 	/* failures here can mean systems won't boot... */
-	pr_err("gpiochip_add: gpios %d..%d (%s) failed to register\n",
+    /*pr_err*/printk("gpiochip_add: gpios %d..%d (%s) failed to register\n",
 		chip->base, chip->base + chip->ngpio - 1,
 		chip->label ? : "generic");
 	return status;

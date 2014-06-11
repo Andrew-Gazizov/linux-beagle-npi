@@ -238,7 +238,7 @@ static irqreturn_t twl4030_bci_interrupt(int irq, void *arg)
 
 	if (irqs1 & (TWL4030_ICHGLOW | TWL4030_ICHGEOC)) {
 		/* charger state change, inform the core */
-		power_supply_changed(&bci->ac);
+        power_supply_changed(&bci->ac);
 		power_supply_changed(&bci->usb);
 	}
 
@@ -315,6 +315,7 @@ static int twl4030_charger_get_current(void)
 	if (bcictl1 & TWL4030_CGAIN)
 		ret *= 2;
 
+
 	return ret;
 }
 
@@ -368,7 +369,7 @@ static int twl4030_bci_get_property(struct power_supply *psy,
 	else
 		is_charging = state & TWL4030_MSTATEC_AC;
 
-	switch (psp) {
+    switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
 		if (is_charging)
 			val->intval = twl4030_bci_state_to_status(state);
@@ -426,6 +427,7 @@ static int __init twl4030_bci_probe(struct platform_device *pdev)
 	struct twl4030_bci *bci;
 	int ret;
 	int reg;
+
 
 	bci = kzalloc(sizeof(*bci), GFP_KERNEL);
 	if (bci == NULL)

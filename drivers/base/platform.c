@@ -80,6 +80,8 @@ struct resource *platform_get_resource_byname(struct platform_device *dev,
 	for (i = 0; i < dev->num_resources; i++) {
 		struct resource *r = &dev->resource[i];
 
+//    printk("i=%d, num=%d, platform_get_resource_byname=%s \n", i, dev->num_resources, r->name);
+
 		if (type == resource_type(r) && !strcmp(r->name, name))
 			return r;
 	}

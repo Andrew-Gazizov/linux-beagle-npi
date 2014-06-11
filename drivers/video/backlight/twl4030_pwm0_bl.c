@@ -144,8 +144,8 @@ static int pwm0_backlight_probe(struct platform_device *pdev)
 	u8 r;
 
 	memset(&props, 0, sizeof(struct backlight_properties));
-	props.max_brightness = MAX_USER_VALUE;
-	props.brightness = MAX_USER_VALUE;
+	props.max_brightness = 63; //MAX_USER_VALUE;
+	props.brightness = 63; //MAX_USER_VALUE;
 	bl = backlight_device_register(pdev->name, &pdev->dev,
 				       NULL, &pwm0_backlight_ops, &props);
 	if (IS_ERR(bl)) {

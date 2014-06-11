@@ -39,6 +39,8 @@
  * address each module uses within a given i2c slave.
  */
 
+#define TRITON_SLEEP_SCRIPT (1<<3)
+
 /* Slave 0 (i2c address 0x48) */
 #define TWL4030_MODULE_USB		0x00
 
@@ -96,6 +98,10 @@
 #define BCI_PRES_INTR_OFFSET	9
 #define USB_PRES_INTR_OFFSET	10
 #define RTC_INTR_OFFSET		11
+
+/* Smartreflex Control */
+#define R_DCDC_GLOBAL_CFG	0x61
+#define CFG_ENABLE_SRFLX	0x08
 
 /*
  * Offset from TWL6030_IRQ_BASE / pdata->irq_base
@@ -639,6 +645,8 @@ struct twl4030_script {
 #define TWL4030_SLEEP_SCRIPT	(1<<3)
 };
 
+void conf_sleep();
+
 struct twl4030_resconfig {
 	u8 resource;
 	u8 devgroup;	/* Processor group that Power resource belongs to */
@@ -655,7 +663,33 @@ struct twl4030_power_data {
 #define TWL4030_RESCONFIG_UNDEF	((u8)-1)
 };
 
+/* Beagle low power scripts */
+static struct twl4030_ins sleep_on_seq[] = {
+        /* Keep HFCLKOUT going for a while... */
+        {MSG_SINGULAR(DEV_GRP_NULL, RES_HFCLKOUT, RES_STATE_ACTIVE), 0x6},
+
+        /* Sleep all our power reset stuff and power supplies */
+        {MSG_BROADCAST(DEV_GRP_NULL, RES_GRP_RC, RES_TYPE_ALL, RES_TYPE2_R0,RES_STATE_SLEEP), 4},
+        {MSG_BROADCAST(DEV_GRP_NULL, RES_GRP_PP, RES_TYPE_ALL, RES_TYPE2_R0,RES_STATE_SLEEP), 4},
+
+        /* Turn off all the power supplies we wanted to turn off */
+        {MSG_BROADCAST(DEV_GRP_NULL, RES_GRP_PP, 2, RES_TYPE2_R0, RES_STATE_OFF), 0x20},
+
+        /* Sleep the main ref */
+        {MSG_BROADCAST(DEV_GRP_NULL, RES_GRP_PR, RES_TYPE_ALL, RES_TYPE2_R0, RES_STATE_SLEEP), 0},
+};
+
+static struct twl4030_script sleep_on_script = {
+        .script        = sleep_on_seq,
+        .size        = ARRAY_SIZE(sleep_on_seq),
+        .flags        = TRITON_SLEEP_SCRIPT,
+};
+
+/*-----------------------------------*/
+
+
 extern void twl4030_power_init(struct twl4030_power_data *triton2_scripts);
+extern void twl4030_power_sr_init(void);
 extern int twl4030_remove_script(u8 flags);
 
 struct twl4030_codec_audio_data {
@@ -832,3 +866,7 @@ static inline int twl4030charger_usb_en(int enable) { return 0; }
 
 
 #endif /* End of __TWL4030_H */
+
+
+static int __init twl4030_write_script(u8 address, struct twl4030_ins *script, int len);
+static int __init twl4030_config_sleep_sequence(u8 address);

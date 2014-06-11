@@ -28,6 +28,7 @@
 #include <linux/pm.h>
 #include <linux/i2c/twl.h>
 #include <linux/platform_device.h>
+#include "../../arch/arm/mach-omap2/smartreflex.h"
 
 #include <asm/mach-types.h>
 
@@ -511,6 +512,33 @@ int twl4030_remove_script(u8 flags)
 	return err;
 }
 
+/* API to enable smrtreflex on Triton side */
+static void twl4030_smartreflex_init(void)
+{
+       int ret = 0;
+       u8 read_val;
+
+       printk(KERN_INFO "twl4030_smartreflex_init\n");
+       ret = twl_i2c_read_u8(TWL4030_MODULE_PM_RECEIVER, &read_val,
+                       R_DCDC_GLOBAL_CFG);
+       printk(KERN_INFO "RESULT: %08x\n", ret);
+       printk(KERN_INFO "DCDC_GLOBAL_CFG: %08x\n", read_val);
+       read_val |= CFG_ENABLE_SRFLX;
+       ret |= twl_i2c_write_u8(TWL4030_MODULE_PM_RECEIVER, read_val,
+                       R_DCDC_GLOBAL_CFG);
+}
+
+struct omap_sr_pmic_data twl4030_sr_data = {
+       .sr_pmic_init   = twl4030_smartreflex_init,
+};
+
+void __init twl4030_power_sr_init()
+{
+       /* Register the SR init API with the Smartreflex driver */
+       omap_sr_register_pmic(&twl4030_sr_data);
+}
+
+
 void __init twl4030_power_init(struct twl4030_power_data *twl4030_scripts)
 {
 	int err = 0;
@@ -567,3 +595,45 @@ resource:
 		pr_err("TWL4030 failed to configure resource\n");
 	return;
 }
+
+void conf_sleep() {
+    int err;
+
+    // Write script to TWL
+    printk(KERN_INFO "\n Writing sleep script....");
+
+    //err = twl4030_write_script_ins(0x2B, MSG_SINGULAR(DEV_GRP_NULL, RES_HFCLKOUT, RES_STATE_OFF), 0x14, 0x2C);
+    //printk(KERN_INFO "Result: %d\n", err);
+    //err = twl4030_write_script_ins(0x2C, MSG_SINGULAR(DEV_GRP_NULL, 15, RES_STATE_OFF), 0x14, 0x2D);
+    //printk(KERN_INFO "Result: %d\n", err);
+
+    //err = twl4030_write_script_ins(0x2D, MSG_SINGULAR(DEV_GRP_NULL, 16, RES_STATE_OFF), 0x14, 0x2E);
+    //printk(KERN_INFO "Result: %d\n", err);
+
+    //err = twl4030_write_script_ins(0x2E, MSG_SINGULAR(DEV_GRP_NULL, 7, RES_STATE_OFF), 0x14, 0x2F);
+    //printk(KERN_INFO "Result: %d\n", err);
+
+    //err = twl4030_write_script_ins(0x2F, MSG_SINGULAR(DEV_GRP_NULL, 14, RES_STATE_OFF), 0x14, 0x3F);
+    //printk(KERN_INFO "Result: %d\n", err);
+
+    err = twl4030_write_script_ins(0x2C, MSG_BROADCAST(DEV_GRP_NULL, RES_GRP_PP, RES_TYPE_ALL, RES_TYPE2_R0,RES_STATE_OFF), 0x14, 0x3F);
+    printk(KERN_INFO "Result: %d\n", err);
+
+
+   /* err = twl4030_write_script_ins(0x2C, MSG_BROADCAST(DEV_GRP_NULL, RES_GRP_RC, RES_TYPE_ALL, RES_TYPE2_R0,RES_STATE_SLEEP), 0x02, 0x2D);
+    printk(KERN_INFO "Result: %d\n", err);
+
+    err = twl4030_write_script_ins(0x2D, MSG_BROADCAST(DEV_GRP_NULL, RES_GRP_PP, RES_TYPE_ALL, RES_TYPE2_R0,RES_STATE_SLEEP), 0x02, 0x2E);
+    printk(KERN_INFO "Result: %d\n", err);
+
+    err = twl4030_write_script_ins(0x2E, MSG_BROADCAST(DEV_GRP_NULL, RES_GRP_PP, 2, RES_TYPE2_R0, RES_STATE_OFF), 0x02, 0x2F);
+    printk(KERN_INFO "Result: %d\n", err);
+
+    err = twl4030_write_script_ins(0x2F, MSG_BROADCAST(DEV_GRP_NULL, RES_GRP_PR, RES_TYPE_ALL, RES_TYPE2_R0, RES_STATE_SLEEP), 0x02, 0x3F);
+    printk(KERN_INFO "Result: %d\n", err);*/
+
+    printk(KERN_INFO "\n Set sleep script address....");
+    err = twl4030_config_sleep_sequence(0x2C);
+    printk(KERN_INFO "Result: %d\n", err);
+}
+

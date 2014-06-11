@@ -48,6 +48,9 @@
 #define PORT_TEGRA	20	/* NVIDIA Tegra internal UART */
 #define PORT_MAX_8250	20	/* max port ID */
 
+/* SC16IS7x2 SPI UART */
+#define PORT_SC16IS7X2	19
+
 /*
  * ARM specific type numbers.  These are not currently guaranteed
  * to be implemented, and will change in the future.  These are

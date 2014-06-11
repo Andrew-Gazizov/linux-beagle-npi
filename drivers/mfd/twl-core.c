@@ -886,12 +886,12 @@ if (twl_has_madc_hwmon()) {
 		if (IS_ERR(child))
 			return PTR_ERR(child);
 
-		child = add_regulator((features & TWL4030_VAUX2)
-					? TWL4030_REG_VAUX2_4030
-					: TWL4030_REG_VAUX2,
-				pdata->vaux2, features);
-		if (IS_ERR(child))
-			return PTR_ERR(child);
+        child = add_regulator((features & TWL4030_VAUX2)
+                    ? TWL4030_REG_VAUX2_4030
+                    : TWL4030_REG_VAUX2,
+                pdata->vaux2, features);
+        if (IS_ERR(child))
+            return PTR_ERR(child);
 
 		child = add_regulator(TWL4030_REG_VINTANA1, pdata->vintana1,
 					features);
@@ -909,13 +909,14 @@ if (twl_has_madc_hwmon()) {
 			return PTR_ERR(child);
 	}
 
-	/* maybe add LDOs that are omitted on cost-reduced parts */
-	if (twl_has_regulator() && !(features & TPS_SUBSET)
-	  && twl_class_is_4030()) {
-		child = add_regulator(TWL4030_REG_VPLL2, pdata->vpll2,
-					features);
-		if (IS_ERR(child))
-			return PTR_ERR(child);
+    /* maybe add LDOs that are omitted on cost-reduced parts */
+    if (twl_has_regulator() && !(features & TPS_SUBSET)
+      && twl_class_is_4030()) {
+
+        child = add_regulator(TWL4030_REG_VPLL2, pdata->vpll2,
+                    features);
+        if (IS_ERR(child))
+            return PTR_ERR(child);
 
 		child = add_regulator(TWL4030_REG_VMMC2, pdata->vmmc2,
 					features);
@@ -1060,16 +1061,16 @@ if (twl_has_madc_hwmon()) {
 
 	}
 
-	if (twl_has_bci() && pdata->bci &&
-			!(features & (TPS_SUBSET | TWL5031))) {
-		child = add_child(3, "twl4030_bci",
-				pdata->bci, sizeof(*pdata->bci), false,
-				/* irq0 = CHG_PRES, irq1 = BCI */
-				pdata->irq_base + BCI_PRES_INTR_OFFSET,
-				pdata->irq_base + BCI_INTR_OFFSET);
-		if (IS_ERR(child))
-			return PTR_ERR(child);
-	}
+    if (twl_has_bci() && pdata->bci &&
+            !(features & (TPS_SUBSET | TWL5031))) {
+        child = add_child(3, "twl4030_bci",
+                pdata->bci, sizeof(*pdata->bci), false,
+                /* irq0 = CHG_PRES, irq1 = BCI */
+                pdata->irq_base + BCI_PRES_INTR_OFFSET,
+                pdata->irq_base + BCI_INTR_OFFSET);
+        if (IS_ERR(child))
+            return PTR_ERR(child);
+    }
 
 	return 0;
 }
@@ -1209,7 +1210,7 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	u8 temp;
 	int ret = 0;
 
-	if (!pdata) {
+    if (!pdata) {
 		dev_dbg(&client->dev, "no platform data?\n");
 		return -EINVAL;
 	}
@@ -1224,11 +1225,12 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		return -EBUSY;
 	}
 
-	for (i = 0; i < TWL_NUM_SLAVES; i++) {
+    for (i = 0; i < TWL_NUM_SLAVES; i++) {
 		struct twl_client	*twl = &twl_modules[i];
 
 		twl->address = client->addr + i;
-		if (i == 0)
+
+        if (i == 0)
 			twl->client = client;
 		else {
 			twl->client = i2c_new_dummy(client->adapter,
@@ -1261,8 +1263,14 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}
 
 	/* load power event scripts */
-	if (twl_has_power() && pdata->power)
-		twl4030_power_init(pdata->power);
+//	if (twl_has_power() && pdata->power)
+//		twl4030_power_init(pdata->power);
+
+    if (twl_has_power()) {
+                  twl4030_power_sr_init();
+                   if (pdata->power)
+                          twl4030_power_init(pdata->power);
+          }
 
 	/* Maybe init the T2 Interrupt subsystem */
 	if (client->irq
@@ -1323,7 +1331,7 @@ static struct i2c_driver twl_driver = {
 
 static int __init twl_init(void)
 {
-	return i2c_add_driver(&twl_driver);
+    return i2c_add_driver(&twl_driver);
 }
 subsys_initcall(twl_init);
 

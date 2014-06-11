@@ -118,6 +118,8 @@ handle_irq(int irq)
 		return;
 	}
 
+    printk(KERN_INFO "device_interrupt occured \n");
+
 	/*
 	 * From here we must proceed with IPL_MAX. Note that we do not
 	 * explicitly enable interrupts afterwards - some MILO PALcode

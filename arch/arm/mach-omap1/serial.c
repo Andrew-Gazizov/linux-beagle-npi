@@ -152,7 +152,7 @@ void __init omap_serial_init(void)
 			}
 			break;
 		case 1:
-			uart2_ck = clk_get(NULL, "uart2_ck");
+            uart2_ck = clk_get(NULL, "uart2_ck");
 			if (IS_ERR(uart2_ck))
 				printk("Could not get uart2_ck\n");
 			else {
@@ -164,7 +164,7 @@ void __init omap_serial_init(void)
 			}
 			break;
 		case 2:
-			uart3_ck = clk_get(NULL, "uart3_ck");
+            uart3_ck = clk_get(NULL, "uart3_ck");
 			if (IS_ERR(uart3_ck))
 				printk("Could not get uart3_ck\n");
 			else {
