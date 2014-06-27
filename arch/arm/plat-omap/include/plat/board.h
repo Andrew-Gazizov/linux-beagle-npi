@@ -151,6 +151,8 @@ struct omap_board_config_kernel {
 	const void *data;
 };
 
+static int omap_ethernet_init(void);
+
 extern const void *__init __omap_get_config(u16 tag, size_t len, int nr);
 
 #define omap_get_config(tag, type) \

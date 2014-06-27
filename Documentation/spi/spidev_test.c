@@ -35,7 +35,7 @@ static uint8_t bits = 8;
 static uint32_t speed = 500000;
 static uint16_t delay;
 
-static void transfer(int fd, uchar reg, uchar val)
+static void transfer(int fd, unsigned char reg, unsigned char val)
 {
 	int ret;
     uint8_t tx[4];
@@ -64,6 +64,9 @@ static void transfer(int fd, uchar reg, uchar val)
 	}
 	puts("");
 }
+
+void udelay(int i) {}
+void mdelay(int i) {}
 
 static void print_usage(const char *prog)
 {

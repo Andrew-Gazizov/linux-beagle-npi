@@ -47,6 +47,9 @@ extern int __must_check bus_create_file(struct bus_type *,
 					struct bus_attribute *);
 extern void bus_remove_file(struct bus_type *, struct bus_attribute *);
 
+#define VERBOSE_DEBUG
+
+
 /**
  * struct bus_type - The bus type of the device
  *

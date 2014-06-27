@@ -510,6 +510,7 @@ struct spi_message {
 
 static inline void spi_message_init(struct spi_message *m)
 {
+    printk(KERN_INFO "spi_message_init\n");
 	memset(m, 0, sizeof *m);
 	INIT_LIST_HEAD(&m->transfers);
 }
@@ -589,6 +590,8 @@ spi_write(struct spi_device *spi, const void *buf, size_t len)
 		};
 	struct spi_message	m;
 
+    printk(KERN_INFO "spi_write\n");
+
 	spi_message_init(&m);
 	spi_message_add_tail(&t, &m);
 	return spi_sync(spi, &m);
@@ -613,6 +616,7 @@ spi_read(struct spi_device *spi, void *buf, size_t len)
 		};
 	struct spi_message	m;
 
+    printk(KERN_INFO "spi_read\n");
 	spi_message_init(&m);
 	spi_message_add_tail(&t, &m);
 	return spi_sync(spi, &m);
@@ -638,6 +642,8 @@ static inline ssize_t spi_w8r8(struct spi_device *spi, u8 cmd)
 	ssize_t			status;
 	u8			result;
 
+    printk(KERN_INFO "spi_w8r8\n");
+
 	status = spi_write_then_read(spi, &cmd, 1, &result, 1);
 
 	/* return negative errno or unsigned value */
@@ -661,6 +667,8 @@ static inline ssize_t spi_w8r16(struct spi_device *spi, u8 cmd)
 {
 	ssize_t			status;
 	u16			result;
+
+    printk(KERN_INFO "spi_w8r8\n");
 
 	status = spi_write_then_read(spi, &cmd, 1, (u8 *) &result, 2);
 

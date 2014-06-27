@@ -916,8 +916,8 @@ void omap_sram_idle(void)
 
 
 
-    gpio4_snapshot();
-    HSUSBOTG_snapshot();
+  //  gpio4_snapshot();
+   // HSUSBOTG_snapshot();
     //reg_snapshot();
 
    // dss_suspend_all_devices();
@@ -1489,6 +1489,9 @@ static int __init omap3_pm_init(void)
 	omap3_save_scratchpad_contents();
 
     clockConf();
+
+
+   // reg_snapshot();
 
     pm_currstates_reg_dump();
 err1:

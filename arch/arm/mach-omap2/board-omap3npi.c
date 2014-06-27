@@ -69,6 +69,8 @@
 
 #include "sdram-micron-mt46h32m32lf-6.h"
 
+#define ETH_KS8851_IRQ			153
+
 /*
  * OMAP3 Beagle revision
  * Run time detection of Beagle revision is done by reading GPIO.
@@ -90,7 +92,7 @@ enum {
 
 static u8 omap3_beagle_version;
 
-#define POWEROFF_GPIO 103
+#define POWEROFF_GPIO 56
 //#define	GPIO_MAX7359_IRQ	156
 
 /*
@@ -388,11 +390,102 @@ static struct spi_board_info board_spi3_board_info[] = {
         .mode        = 0,       /* Mode SPI */
         .controller_data	= &dss_lcd_mcspi_config,
     },
+    {
+        .modalias    = "ks8851",
+        .max_speed_hz = 40000000, /* Speed SPI. */
+        .bus_num     = 3,       /* Number bus McSPI */
+        .chip_select = 0,       /* Chip select for McSPI */
+        .mode        = SPI_MODE_1,   /* Mode SPI */
+        .irq                    = ETH_KS8851_IRQ,
+    },
 };
+
+static int omap_ethernet_init(void)
+{
+    int status;
+
+    printk(KERN_INFO "omap_ethernet_init");
+
+    /* Request of GPIO lines */
+    status = gpio_request(ETH_KS8851_IRQ, "eth_irq");
+    if (status) {
+        pr_err("Cannot request GPIO %d\n", ETH_KS8851_IRQ);
+        goto error2;
+    }
+
+    /* Configuration of requested GPIO lines */
+    status = gpio_direction_input(ETH_KS8851_IRQ);
+    if (status) {
+        pr_err("Cannot set input GPIO %d\n", ETH_KS8851_IRQ);
+        goto error3;
+    }
+
+    return 0;
+
+error3:
+    gpio_free(ETH_KS8851_IRQ);
+error2:
+   // gpio_free(ETH_KS8851_QUART);
+error1:
+  //  gpio_free(ETH_KS8851_POWER_ON);
+    return status;
+}
+
+
+///* Structure for configuing McSPI */
+//static struct spi_board_info board_mcspi3_board_info[] = {
+//    {
+//        .modalias    = "ks8851",
+//        .max_speed_hz = 100000, /* Speed SPI. */
+//        .bus_num     = 3,       /* Number bus McSPI */
+//        .chip_select = 1,       /* Chip select for McSPI */
+//        .mode        = SPI_MODE_3,   /* Mode SPI */
+//    },
+//};
+
+
+static void __init omap3_beagle_config_mcspi3_mux(void)
+{
+        // NOTE: Clock pins need to be in input mode
+    printk(KERN_INFO "omap3_beagle_config_mcspi3_mux");
+
+    printk(KERN_INFO "Before 0x480025DC: %08x\n", 		omap_readl(0x480025DC));
+    printk(KERN_INFO "Before 0x480025DC: %08x\n", 		omap_readl(0x480025E0));
+    omap_mux_init_signal("sdmmc2_clk.mcspi3_clk", OMAP_PIN_INPUT);
+    omap_mux_init_signal("sdmmc2_dat3.mcspi3_cs0", OMAP_PIN_OUTPUT);
+    omap_mux_init_signal("sdmmc2_dat2.mcspi3_cs1", OMAP_PIN_OUTPUT);
+    omap_mux_init_signal("sdmmc2_cmd.mcspi3_simo", OMAP_PIN_OUTPUT);
+    omap_mux_init_signal("sdmmc2_dat0.mcspi3_somi", OMAP_PIN_INPUT_PULLUP);
+
+    printk(KERN_INFO "After 0x480025DC: %08x\n", 		omap_readl(0x480025DC));
+    printk(KERN_INFO "After 0x480025DC: %08x\n", 		omap_readl(0x480025E0));
+
+//    printk(KERN_INFO "MCSPI1_MODULCTRL: %08x\n", 		omap_readl(0x48098028));
+//    printk(KERN_INFO "MCSPI3_MODULCTRL: %08x\n", 		omap_readl(0x480B8028));
+
+
+
+}
 
 static void __init pl_init_spi(void)
 {
-    spi_register_board_info(board_spi3_board_info, ARRAY_SIZE(board_spi3_board_info));
+    int status;
+    //omap3_beagle_config_mcspi3_mux();
+
+   //spi_register_board_info(board_mcspi3_board_info, ARRAY_SIZE(board_mcspi3_board_info));
+    //printk(KERN_INFO "0x480025DC: %08x\n", 		omap_readl(0x480025DC));
+    //printk(KERN_INFO "0x480025DC: %08x\n", 		omap_readl(0x480025E0));
+
+ //   printk(KERN_INFO "0x480021C8: %08x\n", 		omap_readl(0x480021C8));
+   // printk(KERN_INFO "0x480021C8: %08x\n", 		omap_readl(0x480021CC));
+
+    status = omap_ethernet_init();
+    if (status) {
+        pr_err("Ethernet initialization failed: %d\n", status);
+    } else {
+        board_spi3_board_info[1].irq = gpio_to_irq(ETH_KS8851_IRQ);
+        spi_register_board_info(board_spi3_board_info, ARRAY_SIZE(board_spi3_board_info));
+    }
 }
 
 static struct mtd_partition omap3npi_nand_partitions[] = {
@@ -944,8 +1037,8 @@ static void __init omap3_npi_init_irq(void)
 
 static const struct usbhs_omap_board_data usbhs_bdata __initconst = {
 
-    .port_mode[0] = OMAP_EHCI_PORT_MODE_PHY,
-    .port_mode[1] = OMAP_EHCI_PORT_MODE_PHY,
+    .port_mode[0] = OMAP_USBHS_PORT_MODE_UNUSED,
+    .port_mode[1] = OMAP_USBHS_PORT_MODE_UNUSED,
     .port_mode[2] = OMAP_USBHS_PORT_MODE_UNUSED,
 
     .phy_reset  = true,
@@ -1009,12 +1102,13 @@ static void __init npiOppInit(void)
 
 static void omap3_pl_poweroff(void)
 {
+    printk(KERN_INFO "omap3_pl_poweroff");
     //! Not work
-    /*gpio_request(POWEROFF_GPIO, "POWEROFF");
+    gpio_request(POWEROFF_GPIO, "POWEROFF");
     gpio_direction_output(POWEROFF_GPIO, 0);
     gpio_set_value(POWEROFF_GPIO, 1);
     udelay(1000);
-    gpio_set_value(POWEROFF_GPIO, 0);*/
+    gpio_set_value(POWEROFF_GPIO, 0);
 }
 
 /// PWM BACKLITE

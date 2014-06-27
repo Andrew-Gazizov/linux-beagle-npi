@@ -243,9 +243,13 @@ void machine_halt(void)
 
 void machine_power_off(void)
 {
+    printk(KERN_INFO "machine_power_off\n");
 	machine_shutdown();
-	if (pm_power_off)
+    printk(KERN_INFO "machine_shutdown\n");
+    if (pm_power_off) {
+        printk(KERN_INFO "pm_power_off\n");
 		pm_power_off();
+    }
 }
 
 void machine_restart(char *cmd)

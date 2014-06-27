@@ -21,6 +21,8 @@
  *
  */
 
+#define VERBOSE_DEBUG
+
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -217,10 +219,17 @@ static void omap2_mcspi_set_enable(const struct spi_device *spi, int enable)
 {
 	u32 l;
 
-	l = enable ? OMAP2_MCSPI_CHCTRL_EN : 0;
-	mcspi_write_cs_reg(spi, OMAP2_MCSPI_CHCTRL0, l);
+  //  printk(KERN_INFO "omap2_mcspi_set_enable");
+
+    l = enable ? OMAP2_MCSPI_CHCTRL_EN : 0;
+
+    mcspi_write_cs_reg(spi, OMAP2_MCSPI_CHCTRL0, l);
+
+ //   printk(KERN_INFO "l: %08x\n", 	l);
+
 	/* Flash post-writes */
-	mcspi_read_cs_reg(spi, OMAP2_MCSPI_CHCTRL0);
+    //printk(KERN_INFO "mcspi_read_cs_reg: %08x\n", 	mcspi_read_cs_reg(spi, OMAP2_MCSPI_CHCTRL0));
+    mcspi_read_cs_reg(spi, OMAP2_MCSPI_CHCTRL0);
 }
 
 static void omap2_mcspi_force_cs(struct spi_device *spi, int cs_active)
@@ -235,6 +244,8 @@ static void omap2_mcspi_force_cs(struct spi_device *spi, int cs_active)
 static void omap2_mcspi_set_master_mode(struct spi_master *master)
 {
 	u32 l;
+
+ //   printk(KERN_INFO "omap2_mcspi_set_master_mode");
 
 	/* setup when switching from (reset default) slave mode
 	 * to single-channel master mode
@@ -267,17 +278,23 @@ static void omap2_mcspi_restore_ctx(struct omap2_mcspi *mcspi)
 }
 static void omap2_mcspi_disable_clocks(struct omap2_mcspi *mcspi)
 {
+    //printk(KERN_INFO "omap2_mcspi_disable_clocks");
+
 	pm_runtime_put_sync(mcspi->dev);
 }
 
 static int omap2_mcspi_enable_clocks(struct omap2_mcspi *mcspi)
 {
+    //printk(KERN_INFO "omap2_mcspi_enable_clocks");
+
 	return pm_runtime_get_sync(mcspi->dev);
 }
 
 static int mcspi_wait_for_reg_bit(void __iomem *reg, unsigned long bit)
 {
 	unsigned long timeout;
+
+    //printk(KERN_INFO "mcspi_wait_for_reg_bit");
 
 	timeout = jiffies + msecs_to_jiffies(1000);
 	while (!(__raw_readl(reg) & bit)) {
@@ -302,6 +319,8 @@ omap2_mcspi_txrx_dma(struct spi_device *spi, struct spi_transfer *xfer)
 	u8			* rx;
 	const u8		* tx;
 	void __iomem		*chstat_reg;
+
+   // printk(KERN_INFO "omap2_mcspi_txrx_dma");
 
 	mcspi = spi_master_get_devdata(spi->master);
 	mcspi_dma = &mcspi->dma_channels[spi->chip_select];
@@ -453,6 +472,16 @@ omap2_mcspi_txrx_pio(struct spi_device *spi, struct spi_transfer *xfer)
 	void __iomem		*chstat_reg;
 	int			word_len;
 
+    //printk(KERN_INFO "omap2_mcspi_txrx_pio");
+
+//    printk(KERN_INFO "SPI bus num: %08x\n", 	spi->master->bus_num);
+//    printk(KERN_INFO "SPI bus speed: %08x\n", 	spi->max_speed_hz);
+//    printk(KERN_INFO "SPI chip select: %08x\n", 	spi->chip_select);
+//    printk(KERN_INFO "SPI mode: %08x\n", 	spi->mode);
+
+//    printk(KERN_INFO "0x480025DC: %08x\n", 		omap_readl(0x480025DC));
+//    printk(KERN_INFO "0x480025E0: %08x\n", 		omap_readl(0x480025E0));
+
 	mcspi = spi_master_get_devdata(spi->master);
 	count = xfer->len;
 	c = count;
@@ -466,8 +495,14 @@ omap2_mcspi_txrx_pio(struct spi_device *spi, struct spi_transfer *xfer)
 	rx_reg		= base + OMAP2_MCSPI_RX0;
 	chstat_reg	= base + OMAP2_MCSPI_CHSTAT0;
 
-	if (c < (word_len>>3))
+   // printk(KERN_INFO "SPI TX length: %08x\n", 	c);
+   // printk(KERN_INFO "SPI word length: %08x\n", 	word_len);
+
+
+    if (c < (word_len>>3)) {
+        //printk(KERN_INFO "omap2_mcspi_txrx_pio out: %08x\n");
 		return 0;
+    }
 
 	if (word_len <= 8) {
 		u8		*rx;
@@ -480,10 +515,12 @@ omap2_mcspi_txrx_pio(struct spi_device *spi, struct spi_transfer *xfer)
 			c -= 1;
 			if (tx != NULL) {
 				if (mcspi_wait_for_reg_bit(chstat_reg,
-						OMAP2_MCSPI_CHSTAT_TXS) < 0) {
+                        OMAP2_MCSPI_CHSTAT_TXS) < 0) {
 					dev_err(&spi->dev, "TXS timed out\n");
+
 					goto out;
-				}
+                }
+               // printk(KERN_INFO "SPI tx");
 				dev_vdbg(&spi->dev, "write-%d %02x\n",
 						word_len, *tx);
 				__raw_writel(*tx++, tx_reg);
@@ -517,7 +554,7 @@ omap2_mcspi_txrx_pio(struct spi_device *spi, struct spi_transfer *xfer)
 						word_len, *(rx - 1));
 			}
 		} while (c);
-	} else if (word_len <= 16) {
+    } else if (word_len <= 16) {
 		u16		*rx;
 		const u16	*tx;
 
@@ -630,6 +667,9 @@ omap2_mcspi_txrx_pio(struct spi_device *spi, struct spi_transfer *xfer)
 	}
 out:
 	omap2_mcspi_set_enable(spi, 1);
+
+    //printk(KERN_INFO "SPI TX PIO result: %08x\n", count - c);
+
 	return count - c;
 }
 
@@ -654,6 +694,8 @@ static int omap2_mcspi_setup_transfer(struct spi_device *spi,
 	u32 l = 0, div = 0;
 	u8 word_len = spi->bits_per_word;
 	u32 speed_hz = spi->max_speed_hz;
+
+  //  printk(KERN_INFO "omap2_mcspi_setup_transfer");
 
 	mcspi = spi_master_get_devdata(spi->master);
 	spi_cntrl = mcspi->master;
@@ -717,6 +759,8 @@ static void omap2_mcspi_dma_rx_callback(int lch, u16 ch_status, void *data)
 	struct omap2_mcspi	*mcspi;
 	struct omap2_mcspi_dma	*mcspi_dma;
 
+    //printk(KERN_INFO "omap2_mcspi_dma_rx_callback");
+
 	mcspi = spi_master_get_devdata(spi->master);
 	mcspi_dma = &(mcspi->dma_channels[spi->chip_select]);
 
@@ -732,6 +776,8 @@ static void omap2_mcspi_dma_tx_callback(int lch, u16 ch_status, void *data)
 	struct omap2_mcspi	*mcspi;
 	struct omap2_mcspi_dma	*mcspi_dma;
 
+   // printk(KERN_INFO "omap2_mcspi_dma_tx_callback");
+
 	mcspi = spi_master_get_devdata(spi->master);
 	mcspi_dma = &(mcspi->dma_channels[spi->chip_select]);
 
@@ -746,6 +792,8 @@ static int omap2_mcspi_request_dma(struct spi_device *spi)
 	struct spi_master	*master = spi->master;
 	struct omap2_mcspi	*mcspi;
 	struct omap2_mcspi_dma	*mcspi_dma;
+
+ //   printk(KERN_INFO "omap2_mcspi_request_dma");
 
 	mcspi = spi_master_get_devdata(master);
 	mcspi_dma = mcspi->dma_channels + spi->chip_select;
@@ -778,6 +826,8 @@ static int omap2_mcspi_setup(struct spi_device *spi)
 	struct omap2_mcspi	*mcspi;
 	struct omap2_mcspi_dma	*mcspi_dma;
 	struct omap2_mcspi_cs	*cs = spi->controller_state;
+
+  //  printk(KERN_INFO "omap2_mcspi_setup");
 
 	if (spi->bits_per_word < 4 || spi->bits_per_word > 32) {
 		dev_dbg(&spi->dev, "setup: unsupported %d bit words\n",
@@ -824,6 +874,8 @@ static void omap2_mcspi_cleanup(struct spi_device *spi)
 	struct omap2_mcspi_dma	*mcspi_dma;
 	struct omap2_mcspi_cs	*cs;
 
+  //  printk(KERN_INFO "omap2_mcspi_cleanup");
+
 	mcspi = spi_master_get_devdata(spi->master);
 
 	if (spi->controller_state) {
@@ -851,6 +903,8 @@ static void omap2_mcspi_cleanup(struct spi_device *spi)
 static void omap2_mcspi_work(struct work_struct *work)
 {
 	struct omap2_mcspi	*mcspi;
+
+    //printk(KERN_INFO "omap2_mcspi_work");
 
 	mcspi = container_of(work, struct omap2_mcspi, work);
 
@@ -981,6 +1035,8 @@ static int omap2_mcspi_transfer(struct spi_device *spi, struct spi_message *m)
 	unsigned long		flags;
 	struct spi_transfer	*t;
 
+   // printk(KERN_INFO "omap2_mcspi_transfer");
+
 	m->actual_length = 0;
 	m->status = 0;
 
@@ -1045,6 +1101,9 @@ static int omap2_mcspi_transfer(struct spi_device *spi, struct spi_message *m)
 	queue_work(omap2_mcspi_wq, &mcspi->work);
 	spin_unlock_irqrestore(&mcspi->lock, flags);
 
+
+   // printk(KERN_INFO "omap2_mcspi_transfer: OK");
+
 	return 0;
 }
 
@@ -1053,6 +1112,8 @@ static int __init omap2_mcspi_master_setup(struct omap2_mcspi *mcspi)
 	struct spi_master	*master = mcspi->master;
 	u32			tmp;
 	int ret = 0;
+
+   // printk(KERN_INFO "omap2_mcspi_master_setup");
 
 	ret = omap2_mcspi_enable_clocks(mcspi);
 	if (ret < 0)
@@ -1087,6 +1148,8 @@ static int __init omap2_mcspi_probe(struct platform_device *pdev)
 	struct omap2_mcspi	*mcspi;
 	struct resource		*r;
 	int			status = 0, i;
+
+   // printk(KERN_INFO "omap2_mcspi_probe");
 
 	master = spi_alloc_master(&pdev->dev, sizeof *mcspi);
 	if (master == NULL) {
@@ -1202,6 +1265,8 @@ static int __exit omap2_mcspi_remove(struct platform_device *pdev)
 	struct omap2_mcspi_dma	*dma_channels;
 	struct resource		*r;
 	void __iomem *base;
+
+   // printk(KERN_INFO "omap2_mcspi_remove");
 
 	master = dev_get_drvdata(&pdev->dev);
 	mcspi = spi_master_get_devdata(master);

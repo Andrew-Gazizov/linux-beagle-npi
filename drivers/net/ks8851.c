@@ -21,7 +21,6 @@
 #include <linux/cache.h>
 #include <linux/crc32.h>
 #include <linux/mii.h>
-
 #include <linux/spi/spi.h>
 
 #include "ks8851.h"
@@ -335,6 +334,8 @@ static unsigned ks8851_rdreg32(struct ks8851_net *ks, unsigned reg)
  */
 static void ks8851_soft_reset(struct ks8851_net *ks, unsigned op)
 {
+    printk(KERN_INFO "ks8851_soft_reset");
+
 	ks8851_wrreg16(ks, KS_GRR, op);
 	mdelay(1);	/* wait a short time to effect reset */
 	ks8851_wrreg16(ks, KS_GRR, 0);
@@ -381,6 +382,7 @@ static void ks8851_init_mac(struct ks8851_net *ks)
 {
 	struct net_device *dev = ks->netdev;
 
+    printk(KERN_INFO "ks8851_init_mac");
 	random_ether_addr(dev->dev_addr);
 	ks8851_write_mac_addr(dev);
 }
@@ -1523,6 +1525,9 @@ static int ks8851_read_selftest(struct ks8851_net *ks)
 	int ret = 0;
 	unsigned rd;
 
+    printk(KERN_INFO "ks8851_read_selftest\n");
+
+
 	rd = ks8851_rdreg16(ks, KS_MBIR);
 
 	if ((rd & both_done) != both_done) {
@@ -1581,6 +1586,9 @@ static int __devinit ks8851_probe(struct spi_device *spi)
 	struct net_device *ndev;
 	struct ks8851_net *ks;
 	int ret;
+    int i;
+
+    printk(KERN_INFO "ks8851_probe\n");
 
 	ndev = alloc_etherdev(sizeof(struct ks8851_net));
 	if (!ndev) {
@@ -1640,14 +1648,27 @@ static int __devinit ks8851_probe(struct spi_device *spi)
 
 	/* issue a global soft reset to reset the device. */
 	ks8851_soft_reset(ks, GRR_GSR);
-
 	/* simple check for a valid chip being connected to the bus */
+
+//    while (1) {
+//        i = 0xFFFFFF;
+//        while (i > 0) {
+//            i--;
+//        }
+//        printk(KERN_INFO "Read SPI\n");
+//        ks8851_rdreg16(ks, KS_CIDER);
+//    }
+
+    printk(KERN_INFO "entry 1");
 
 	if ((ks8851_rdreg16(ks, KS_CIDER) & ~CIDER_REV_MASK) != CIDER_ID) {
 		dev_err(&spi->dev, "failed to read device ID\n");
 		ret = -ENODEV;
 		goto err_id;
 	}
+
+    printk(KERN_INFO "entry 2");
+
 
 	/* cache the contents of the CCR register for EEPROM, etc. */
 	ks->rc_ccr = ks8851_rdreg16(ks, KS_CCR);
@@ -1657,15 +1678,27 @@ static int __devinit ks8851_probe(struct spi_device *spi)
 	else
 		ks->eeprom_size = 0;
 
+
+
 	ks8851_read_selftest(ks);
 	ks8851_init_mac(ks);
 
-	ret = request_irq(spi->irq, ks8851_irq, IRQF_TRIGGER_LOW,
-			  ndev->name, ks);
+
+
+    ret = request_irq(spi->irq, ks8851_irq, IRQF_TRIGGER_LOW,
+              ndev->name, ks);
+
+
+    printk(KERN_INFO "request irq: (%c) %08x\n", (ret<0)?(char)('-'):(char)('+'), (ret<0)?(-ret):(ret));
+
+
 	if (ret < 0) {
 		dev_err(&spi->dev, "failed to get irq\n");
 		goto err_irq;
 	}
+
+
+    printk(KERN_INFO "register_netdev");
 
 	ret = register_netdev(ndev);
 	if (ret) {
@@ -1693,6 +1726,7 @@ static int __devexit ks8851_remove(struct spi_device *spi)
 {
 	struct ks8851_net *priv = dev_get_drvdata(&spi->dev);
 
+    printk(KERN_INFO "ks8851_remove");
 	if (netif_msg_drv(priv))
 		dev_info(&spi->dev, "remove\n");
 
@@ -1716,11 +1750,18 @@ static struct spi_driver ks8851_driver = {
 
 static int __init ks8851_init(void)
 {
-	return spi_register_driver(&ks8851_driver);
+    printk(KERN_INFO "ks8851_init");
+    //omap_writel(0x01190001, 0x480025DC);
+    //omap_writel(0x01010019, 0x480025E0);
+    omap_writel(0x01090001, 0x480025DC);
+    omap_writel(0x01010019, 0x480025E0);
+
+    return spi_register_driver(&ks8851_driver);
 }
 
 static void __exit ks8851_exit(void)
 {
+    printk(KERN_INFO "ks8851_exit");
 	spi_unregister_driver(&ks8851_driver);
 }
 

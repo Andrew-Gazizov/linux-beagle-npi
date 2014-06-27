@@ -252,9 +252,12 @@ static void spi_drv_shutdown(struct device *dev)
  */
 int spi_register_driver(struct spi_driver *sdrv)
 {
+    printk(KERN_INFO "spi_register_driver");
 	sdrv->driver.bus = &spi_bus_type;
-	if (sdrv->probe)
+    if (sdrv->probe) {
+        printk(KERN_INFO "sdrv->probe");
 		sdrv->driver.probe = spi_drv_probe;
+    }
 	if (sdrv->remove)
 		sdrv->driver.remove = spi_drv_remove;
 	if (sdrv->shutdown)
