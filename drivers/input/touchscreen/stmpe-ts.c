@@ -442,7 +442,7 @@ static int __devexit stmpe_ts_remove(struct platform_device *pdev)
 
 static int stmpe_ts_suspend()
 {
-    printk("\n\n\n\n\nstmpe_suspend\n\n\n\n\n\");
+    printk("nstmpe_suspend\n\n\n\n\n");
     return 0;
 }
 

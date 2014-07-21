@@ -70,6 +70,7 @@
 #include "sdram-micron-mt46h32m32lf-6.h"
 
 #define ETH_KS8851_IRQ			153
+#define SC16ISX2_IRQ			94
 
 /*
  * OMAP3 Beagle revision
@@ -152,10 +153,10 @@ static struct stmpe_platform_data stmpe811_data = {
 
 static uint32_t board_keymap[] = {
 
-    KEY(0, 0, KEY_ENTER),	KEY(0, 1, KEY_UP),	KEY(0, 2, KEY_ENTER),	KEY(0, 3, KEY_6),
-    KEY(1, 0, KEY_3),	KEY(1, 1, KEY_DOWN),	KEY(1, 2, KEY_LEFT),	KEY(1, 3, KEY_8),
-    KEY(2, 0, KEY_RIGHT),	KEY(2, 1, KEY_1),	KEY(2, 2, KEY_1),	KEY(2, 3, KEY_7),
-    KEY(3, 0, KEY_1),	KEY(3, 1, KEY_1),	KEY(3, 2, KEY_RIGHT),	KEY(3, 3, KEY_7),
+    KEY(0, 0, KEY_F3),	KEY(0, 1, KEY_UP),	KEY(0, 2, KEY_F3),	KEY(0, 3, KEY_ENTER),
+    KEY(1, 0, KEY_3),	KEY(1, 1, KEY_DOWN),	KEY(1, 2, KEY_LEFT),	KEY(1, 3, KEY_F2),
+    KEY(2, 0, KEY_RIGHT),	KEY(2, 1, KEY_1),	KEY(2, 2, KEY_1),	KEY(2, 3, KEY_F1),
+    KEY(3, 0, KEY_1),	KEY(3, 1, KEY_1),	KEY(3, 2, KEY_RIGHT),	KEY(3, 3, KEY_F1),
 
     //    {{ .code = KEY_7, }, { .code = KEY_8}, { .code = KEY_ENTER},{ .code = KEY_A}},
     //    {{ .code = KEY_B, }, { .code = KEY_UP}, { .code = KEY_6},{ .code = KEY_C}},
@@ -185,28 +186,6 @@ static struct sc16is7x2_platform_data sc16is7x2_SERIALPORT3_data = {
     .names = NULL,
 };
 
-//static int __init lpc313x_sc16is7x2_register(void)
-//{
-//    struct spi_board_info info =
-//    {
-//            .modalias               = "sc16is7x2",
-//        .platform_data          = &sc16is7x2_SERIALPORT3_data,
-//        .bus_num                = 0,
-//        .irq                    = gpio_to_irq(14),
-//        .chip_select            = 11,
-//        .max_speed_hz           = 187500,
-//        .mode                   = SPI_MODE_0,
-//        //.controller_data    = &sc16is7x2_mcspi_config,
-//        //.modalias = "sc16is7x2",
-//        //.max_speed_hz = 10000000,
-//        //.bus_num = 0,
-//        //.irq = IRQ_GPIO_14,//IRQ_GPIO14
-//        //.chip_select = 1,
-//    };
-
-//    return spi_register_board_info(&info, 1);
-//}
-
 static struct i2c_board_info __initdata pl_i2c_devices_boardinfo[] = {
     {
         I2C_BOARD_INFO("stmpe811", (0x82>>1)),//0x88
@@ -217,7 +196,7 @@ static struct i2c_board_info __initdata pl_i2c_devices_boardinfo[] = {
     {
         I2C_BOARD_INFO("sc16is7x2-i2c", 0x4D/*(0x9A>>1)*/),
         .platform_data          = &sc16is7x2_SERIALPORT3_data,
-        .irq        = OMAP_GPIO_IRQ(94),
+        .irq        = OMAP_GPIO_IRQ(SC16ISX2_IRQ),
         //        .flags = I2C_CLIENT_WAKE,
     },
 };
@@ -428,6 +407,35 @@ error2:
    // gpio_free(ETH_KS8851_QUART);
 error1:
   //  gpio_free(ETH_KS8851_POWER_ON);
+    return status;
+}
+
+static int omap_sc16is7x2_init(void)
+{
+    int status;
+
+    printk(KERN_INFO "omap_sc16is7x2_init");
+
+    /* Request of GPIO lines */
+    status = gpio_request(SC16ISX2_IRQ, "sc16isx2_irq");
+    if (status) {
+        pr_err("Cannot request GPIO %d\n", SC16ISX2_IRQ);
+        goto error2;
+    }
+
+    /* Configuration of requested GPIO lines */
+    status = gpio_direction_input(SC16ISX2_IRQ);
+    if (status) {
+        pr_err("Cannot set input GPIO %d\n", SC16ISX2_IRQ);
+        goto error3;
+    }
+
+    return 0;
+
+error3:
+    gpio_free(SC16ISX2_IRQ);
+error2:
+    gpio_free(SC16ISX2_IRQ);
     return status;
 }
 
@@ -1229,6 +1237,8 @@ static void __init omap3_npi_init(void)
 
     // SPI
     pl_init_spi();
+
+    omap_sc16is7x2_init();
 
     // USB
     usb_musb_init(NULL);

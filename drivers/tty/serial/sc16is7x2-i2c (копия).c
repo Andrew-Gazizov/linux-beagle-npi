@@ -16,10 +16,6 @@
 
 #include<linux/time.h>
 
-
-
-
-
 #define DEBUG
 
 #define DRIVER_NAME		"sc16is7x2-i2c"
@@ -128,12 +124,6 @@ static inline u8 read_cmd(u8 reg, u8 ch)
     return write_cmd(reg, ch);
 }
 
-static void sc16is7x2_handle_baud(struct i2c_client *client, unsigned ch);
-static void sc16is7x2_handle_regs(struct i2c_client *client, unsigned ch);
-static void sc16is7x2_read_status(struct i2c_client *client, unsigned ch);
-static void sc16is7x2_handle_tx(struct i2c_client *client, unsigned ch);
-static int sc16is7x2_handle_rx(struct i2c_client *client, unsigned ch);
-
 /*
  * sc16is7x2_write - Write a new register content (sync)
  * @reg: Register offset
@@ -143,7 +133,11 @@ static int sc16is7x2_write(struct i2c_client *client, u8 reg, u8 ch, u8 val)
 {
     u8 out;
     out = write_cmd(reg, ch);
+
     s32 ret = i2c_smbus_write_byte_data(client, out, val);
+
+    printk("   %s (ch%i) %d bytes written to reg %x val %x reg_dev %x \n", __func__, ch, ret, reg, val, out);
+
     return ret;
 }
 
@@ -158,6 +152,7 @@ static int sc16is7x2_write(struct i2c_client *client, u8 reg, u8 ch, u8 val)
 static int sc16is7x2_read(struct i2c_client *client, unsigned reg, unsigned ch)
 {
     s32 ret = i2c_smbus_read_byte_data(client, read_cmd(reg, ch));
+    printk("sc16is7x2_read: %x ", ret);
     return ret;
 }
 
@@ -166,20 +161,18 @@ static int sc16is7x2_read(struct i2c_client *client, unsigned reg, unsigned ch)
 /* Trigger work thread*/
 static void sc16is7x2_dowork(struct sc16is7x2_channel *chan)
 {
-    struct sc16is7x2_chip *ts = chan->chip;
-    unsigned ch = (chan == ts->channel) ? 0 : 1;
+    printk("sc16is7x2_dowork \n");
 
-    do {
-        sc16is7x2_handle_baud(ts->client, ch);
-        sc16is7x2_handle_regs(ts->client, ch);
-        sc16is7x2_read_status(ts->client, ch);
-        sc16is7x2_handle_tx(ts->client, ch);
-        sc16is7x2_handle_rx(ts->client, ch);
-    } while (!(chan->iir & UART_IIR_NO_INT));
+    if(!freezing(current))
+    {
+        queue_work(chan->workqueue, &chan->work);
+    }
 }
 
 static irqreturn_t sc16is7x2_irq(int irq, void *data)
 {
+    printk("%s \n", __func__);
+
     struct sc16is7x2_channel *chan = data;
 
 #ifdef DEBUG
@@ -187,16 +180,26 @@ static irqreturn_t sc16is7x2_irq(int irq, void *data)
     chan->handle_irq = true;
 #endif
 
+    getnstimeofday(&ts_start);
+    printk("Curr time: %d ", ts_start.tv_nsec);
+
     /* Trigger work thread */
     sc16is7x2_dowork(chan);
-   return IRQ_HANDLED;
+   return IRQ_WAKE_THREAD;
 }
 
 /* ********************************  ********************************* */
 static int sc16is7x2_handle_rx(struct i2c_client *client, unsigned ch)
 {
+    printk("%s channel %d\n", __func__, ch);
     struct sc16is7x2_chip *ts = i2c_get_clientdata(client);
     struct sc16is7x2_channel *chan = &ts->channel[ch];
+
+    getnstimeofday(&ts_end);
+    test_of_time = timespec_sub(ts_end,ts_start);
+
+    printk("Curr time: %d ", ts_end.tv_nsec);
+    printk("Period: %d ", test_of_time.tv_nsec);
 
     unsigned long flags;
     u8 lsr = chan->lsr;
@@ -212,36 +215,61 @@ static int sc16is7x2_handle_rx(struct i2c_client *client, unsigned ch)
     unsigned num_read;
     num_read = 0;
 
-    switch (chan->iir & 0x3F) {
+    iir = sc16is7x2_read(client, UART_IIR, ch);
+
+    switch (iir & 0x3F) {
         case UART_IIR_RDI:
-        //    printk(KERN_INFO "Pending interrupt: Receiver data interrupt");
+            printk(KERN_INFO "Pending interrupt: Receiver data interrupt");
             break;
         case UART_IIR_RLSI:
-          //  printk(KERN_INFO "Pending interrupt: Receiver line status interrupt");
+            printk(KERN_INFO "Pending interrupt: Receiver line status interrupt");
             break;
         case UART_IIR_RTOI:
-           // printk(KERN_INFO "Pending interrupt: Receiver time-out interrupt");
+            printk(KERN_INFO "Pending interrupt: Receiver time-out interrupt");
             break;
         default:
-           // printk(KERN_INFO "Pending interrupt: Interrupt is not registered: %08x\n", iir);
-            return;
+            printk(KERN_INFO "Pending interrupt: Interrupt is not registered: %08x\n", iir);
+            //return;
     }
 
-    rxlvl = sc16is7x2_read(client, REG_RXLVL, ch);
-    if (rxlvl <= 0) return;
-    /* Ensure sanity of RX level */
-    else if (rxlvl > FIFO_SIZE) rxlvl = FIFO_SIZE;
+    fcr = sc16is7x2_read(client, UART_FCR, ch);
+    printk(KERN_INFO "FCR: %08x\n", fcr);
+    printk(KERN_INFO "TLR: %08x\n", sc16is7x2_read(client, 7, ch));
+    printk(KERN_INFO "LCR: %08x\n", sc16is7x2_read(client, UART_LCR, ch));
+    printk(KERN_INFO "MCR: %08x\n", sc16is7x2_read(client, UART_MCR, ch));
+    printk(KERN_INFO "EFR: %08x\n", sc16is7x2_read(client, UART_EFR, ch));
+    printk(KERN_INFO "LSR: %08x\n", sc16is7x2_read(client, UART_LSR, ch));
+    printk(KERN_INFO "IER: %08x\n", sc16is7x2_read(client, UART_IER, ch));
+    printk(KERN_INFO "EFCR: %08x\n", sc16is7x2_read(client, 0xF, ch));
 
+    rxlvl = sc16is7x2_read(client, REG_RXLVL, ch);
+    if (rxlvl <= 0) {
+        printk(KERN_INFO "ERROR: rxlvl<=0 ");
+        printk(KERN_INFO "RXLVL = : %08x\n", rxlvl);
+        return;
+    } else if (rxlvl > FIFO_SIZE) {
+        /* Ensure sanity of RX level */
+        printk(KERN_INFO "ERROR: rxlvl>FIFO_SIZE");
+        rxlvl = FIFO_SIZE;
+    }
     // Read data from FIFO
+    printk("%s RXLVL = %d \n", __func__, rxlvl);
     rxlvl = i2c_smbus_read_i2c_block_data(client, read_cmd(UART_RX, ch), rxlvl, &chan->buf[i]);
+    printk("%s reads bytes = %d \n", __func__, rxlvl);
     i+=rxlvl;
+
     rxlvl = sc16is7x2_read(client, REG_RXLVL, ch);
     if (rxlvl > 0) {
+        printk("%s FIFO estimated bytes = %d \n", __func__, sc16is7x2_read(client, REG_RXLVL, ch));
         rxlvl = i2c_smbus_read_i2c_block_data(client, read_cmd(UART_RX, ch), rxlvl, &chan->buf[i]);
+        printk("%s reads bytes = %d \n", __func__, rxlvl);
         i+=rxlvl;
+        printk("%s FIFO estimated bytes = %d \n", __func__, sc16is7x2_read(client, REG_RXLVL, ch));
     }
 //    for(j=0; j<i; j++)
 //              printk("%s chan->buf[%d] = %x \n", __func__, j, chan->buf[j]);
+
+
     struct uart_port *uart = &chan->uart;
     struct tty_struct *tty = uart->state->port.tty;
 
@@ -274,22 +302,31 @@ static int sc16is7x2_handle_rx(struct i2c_client *client, unsigned ch)
     }
 
     rxlvl = i;
-
     /* Insert received data */
     uart->icount.rx += rxlvl;
+    printk(KERN_INFO "tty_insert_flip_string\n");
     tty_insert_flip_string(tty, &chan->buf[0], rxlvl);
 
 ignore_char:
     spin_unlock_irqrestore(&uart->lock, flags);
 
     /* Push the received data to receivers */
-    if (rxlvl) tty_flip_buffer_push(tty);
+    if (rxlvl) {
+        printk(KERN_INFO "tty_flip_buffer_push\n");
+        tty_flip_buffer_push(tty);
+    }
+
+    rxlvl = sc16is7x2_read(client, REG_RXLVL, ch);
+    printk("%s RXLVL = %d \n", __func__, rxlvl);
     return rxlvl;
 }
 
 
 static void sc16is7x2_handle_tx(struct i2c_client *client, unsigned ch)
 {
+    printk("%s \n", __func__);
+ //   return;
+
     struct sc16is7x2_chip *ts = i2c_get_clientdata(client);
     struct sc16is7x2_channel *chan = &ts->channel[ch];
     struct uart_port *uart = &chan->uart;
@@ -307,7 +344,7 @@ static void sc16is7x2_handle_tx(struct i2c_client *client, unsigned ch)
     }
     if (uart_circ_empty(xmit) || uart_tx_stopped(&chan->uart)) {
         /* No data to send or TX is stopped */
-      //  printk("No data to send or TX is stopped\n");
+        printk("No data to send or TX is stopped\n");
         return;
     }
 
@@ -320,7 +357,15 @@ static void sc16is7x2_handle_tx(struct i2c_client *client, unsigned ch)
     txlvl = min(txlvl, 30);
 
     /* number of bytes to transfer to the fifo */
+
+    //    printk("%s (%i) %d txlvl\n", __func__, ch, txlvl);
+
     len = min(txlvl, (int)uart_circ_chars_pending(xmit));
+
+    //    printk("%s (%i) %d bytes\n", __func__, ch, len);
+
+    printk("%s (%i) %d bytes \n", __func__, ch, len);
+
     spin_lock_irqsave(&uart->lock, flags);
     for (i = 0; i <= len-1 ; i++)
     {
@@ -332,7 +377,11 @@ static void sc16is7x2_handle_tx(struct i2c_client *client, unsigned ch)
     uart->icount.tx += len;
     spin_unlock_irqrestore(&uart->lock, flags);
 
+
+    //    chan->buf[0] = write_cmd(UART_TX, ch);
+
     i2c_smbus_write_block_data(client, write_cmd(UART_TX, ch), len, chan->buf);
+    //    printk("client transfer TX handling failed \n");
 
     if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
         uart_write_wakeup(uart);
@@ -343,10 +392,12 @@ static void sc16is7x2_handle_baud(struct i2c_client *client, unsigned ch)
     struct sc16is7x2_chip *ts = i2c_get_clientdata(client);
     struct sc16is7x2_channel *chan = &ts->channel[ch];
 
+    printk("%s\n", __func__);
     if (!chan->handle_baud)
         return;
 
     printk("%s\n", __func__);
+
     sc16is7x2_write(client, UART_IER, ch, 0);
     sc16is7x2_write(client, UART_LCR, ch, UART_LCR_DLAB); /* access DLL&DLM */
     sc16is7x2_write(client, UART_DLL, ch, chan->quot & 0xff);
@@ -372,6 +423,7 @@ static void sc16is7x2_handle_regs(struct i2c_client *client, unsigned ch)
         return;
 
     printk("%s\n", __func__);
+
     sc16is7x2_write(client, UART_LCR, ch, 0xBF);  /* access EFR */
     sc16is7x2_write(client, UART_EFR, ch, chan->efr);
     sc16is7x2_write(client, UART_LCR, ch, chan->lcr);
@@ -387,10 +439,51 @@ static void sc16is7x2_read_status(struct i2c_client *client, unsigned ch)
     struct sc16is7x2_chip *ts = i2c_get_clientdata(client);
     struct sc16is7x2_channel *chan = &ts->channel[ch];
     u8 ier;
+
+#ifdef DEBUG
+
+    //~ ier = sc16is7x2_read(client, UART_IER, ch);
+#endif
+   printk("%s channel %d\n", __func__, ch);
+
+
+    ier = sc16is7x2_read(client, UART_IER, ch);
+
     chan->iir = sc16is7x2_read(client, UART_IIR, ch);
     chan->msr = sc16is7x2_read(client, UART_MSR, ch);
     chan->lsr = sc16is7x2_read(client, UART_LSR, ch);
+
+    //    chan->fcr = sc16is7x2_read(client, UART_FCR, ch); //only writable
     chan->efcr = sc16is7x2_read(client, REG_EFCR, ch);
+
+    //    printk("%s ier=0x%02x iir=0x%02x msr=0x%02x lsr=0x%02x efcr=0x%02x \n", __func__, ier, chan->iir, chan->msr, chan->lsr, chan->efcr);
+
+}
+
+static void sc16is7x2_handle_channel(struct work_struct *w)
+{
+    struct sc16is7x2_channel *chan = container_of(w, struct sc16is7x2_channel, work);
+    struct sc16is7x2_chip *ts = chan->chip;
+    unsigned ch = (chan == ts->channel) ? 0 : 1;
+
+    sc16is7x2_read_status(ts->client, ch); // tmp
+
+#ifdef DEBUG
+    printk("%s (%i) %s\n", __func__, ch,
+           chan->handle_irq ? "irq" : "");
+    chan->handle_irq = false;
+#endif
+
+    do {
+        sc16is7x2_handle_baud(ts->client, ch);
+        sc16is7x2_handle_regs(ts->client, ch);
+        sc16is7x2_read_status(ts->client, ch);
+
+        sc16is7x2_handle_tx(ts->client, ch);
+        sc16is7x2_handle_rx(ts->client, ch);
+    } while (!(chan->iir & UART_IIR_NO_INT));
+
+    printk("%s finished\n", __func__);
 }
 
 /* ******************************** UART ********************************* */
@@ -456,6 +549,8 @@ static void sc16is7x2_start_tx(struct uart_port *port)
     struct sc16is7x2_channel *chan = to_sc16is7x2_channel(port);
     struct sc16is7x2_chip *ts = chan->chip;
 
+    printk("%s \n", __func__);
+
     /* Trigger work thread for sending data */
     sc16is7x2_dowork(chan);
 }
@@ -464,6 +559,8 @@ static void sc16is7x2_stop_rx(struct uart_port *port)
 {
     struct sc16is7x2_channel *chan = to_sc16is7x2_channel(port);
     struct sc16is7x2_chip *ts = chan->chip;
+
+    //    printk("%s\n", __func__);
 
     chan->ier &= ~UART_IER_RLSI;
     chan->uart.read_status_mask &= ~UART_LSR_DR;
@@ -475,6 +572,9 @@ static void sc16is7x2_stop_rx(struct uart_port *port)
 static void sc16is7x2_enable_ms(struct uart_port *port)
 {
     struct sc16is7x2_channel *chan = to_sc16is7x2_channel(port);
+    //    struct sc16is7x2_chip *ts = chan->chip;
+
+    //    printk("%s\n", __func__);
 
     chan->ier |= UART_IER_MSI;
     chan->handle_regs = true;
@@ -503,10 +603,20 @@ static int sc16is7x2_startup(struct uart_port *port)
     sc16is7x2_write(client, UART_IER, ch, 0);
     sc16is7x2_read_status(client, ch);
 
-    /* Setup IRQ. Actually we have a low active IRQ, but we want
+    /* Initialize work queue */
+    chan->workqueue = create_workqueue(DRIVER_NAME);
+    if (!chan->workqueue) {
+        printk("Workqueue creation failed\n");
+        return -EBUSY;
+    }
+    INIT_WORK(&chan->work, sc16is7x2_handle_channel);
+
+      /* Setup IRQ. Actually we have a low active IRQ, but we want
         * one shot behaviour */
     if (request_threaded_irq(client->irq, NULL, sc16is7x2_irq, IRQF_TRIGGER_FALLING | IRQF_SHARED, DRIVER_NAME, chan)) {
         printk("IRQ request failed\n");
+        destroy_workqueue(chan->workqueue);
+        chan->workqueue = NULL;
         return -EBUSY;
     }
     spin_lock_irqsave(&chan->uart.lock, flags);
@@ -540,12 +650,20 @@ static void sc16is7x2_shutdown(struct uart_port *port)
     unsigned long flags;
     unsigned ch = port->line & 0x01;
 
-   printk("%s\n", __func__);
+    //    printk("%s\n", __func__);
 
     BUG_ON(!chan);
+    //    BUG_ON(!ts);
 
     /* Free the interrupt */
     free_irq(client->irq, chan);
+
+    if (chan->workqueue) {
+        /* Flush and destroy work queue */
+        flush_workqueue(chan->workqueue);
+        destroy_workqueue(chan->workqueue);
+        chan->workqueue = NULL;
+    }
 
     /* Suspend HW */
     spin_lock_irqsave(&chan->uart.lock, flags);
@@ -617,9 +735,24 @@ sc16is7x2_set_termios(struct uart_port *port, struct ktermios *termios,
         fcr |= UART_FCR_TRIGGER_1;
     else
     {
+        //        printk("%s (baud %u) UART_FCR_R_TRIG_01 | UART_FCR_T_TRIG_10 \n", __func__, baud);
+
         fcr |= UART_FCR_R_TRIG_01 | UART_FCR_T_TRIG_10;
     }
 
+    //    chan->efr = UART_EFR_ECB;
+    //    chan->mcr |= UART_MCR_RTS;
+    if (termios->c_cflag & CRTSCTS)
+    {
+        //        printk("%s (baud %u) UART_EFR_CTS | UART_EFR_RTS \n", __func__, baud);
+
+        //        chan->efr |= UART_EFR_CTS | UART_EFR_RTS;
+    }
+
+    /*
+     * Ok, we're now changing the port state.  Do it with
+     * interrupts disabled.
+     */
     spin_lock_irqsave(&chan->uart.lock, flags);
 
     /* we are sending char from a workqueue so enable */
@@ -689,18 +822,18 @@ sc16is7x2_set_termios(struct uart_port *port, struct ktermios *termios,
 
 static const char * sc16is7x2_type(struct uart_port *port)
 {
-    printk("%s\n", __func__);
+    //    printk("%s\n", __func__);
     return TYPE_NAME;
 }
 
 static void sc16is7x2_release_port(struct uart_port *port)
 {
-     printk("%s\n", __func__);
+    //    printk("%s\n", __func__);
 }
 
 static int sc16is7x2_request_port(struct uart_port *port)
 {
-    printk("%s\n", __func__);
+    //    printk("%s\n", __func__);
     return 0;
 }
 
@@ -709,7 +842,7 @@ static void sc16is7x2_config_port(struct uart_port *port, int flags)
     struct sc16is7x2_channel *chan = to_sc16is7x2_channel(port);
     struct sc16is7x2_chip *ts = chan->chip;
 
-    printk("%s\n", __func__);
+    //    printk("%s\n", __func__);
     if (flags & UART_CONFIG_TYPE)
         chan->uart.type = PORT_SC16IS7X2;
 }
@@ -935,12 +1068,17 @@ static struct uart_ops sc16is7x2_uart_ops = {
 
 static int sc16is7x2_register_uart_port(struct sc16is7x2_chip *data, unsigned ch)
 {
-    printk("%s ch %d \n", __func__, ch);
+    //    printk("%s ch %d \n", __func__, ch);f
     struct sc16is7x2_channel *chan = &(data->channel[ch]);
     struct uart_port *uart = &chan->uart;
 
+    /* Disable irqs and go to sleep */
+    //    sc16is7x2_write(data->client, UART_IER, ch, UART_IERX_SLEEP);
+
     chan->chip = data;
 
+    //    printk("%s irq: %d uartclk: %lu \n", __func__, data->client->irq, data->uartclk);
+    //    printk(KERN_ERR "irq: %d\n" , data->client->irq);
     uart->irq = data->client->irq;
     uart->uartclk = data->uartclk;
     uart->fifosize = FIFO_SIZE;
@@ -959,7 +1097,7 @@ static int sc16is7x2_register_uart_port(struct sc16is7x2_chip *data, unsigned ch
 static int __devinit sc16is7x2_probe(struct i2c_client *client,
                                      const struct i2c_device_id *id)
 {
-    printk("sc16is7x2_probe \n");
+    //    printk("sc16is7x2_probe \n");
 
     int ret = 0;
 
@@ -973,7 +1111,7 @@ static int __devinit sc16is7x2_probe(struct i2c_client *client,
     struct sc16is7x2_platform_data *pdata = client->dev.platform_data;
     if (pdata == NULL) {
         printk("sc16is7x2_probe no platform data\n");
-        return -EINVAL;
+        //		return -EINVAL;
     }
 
     struct sc16is7x2_chip *data;
@@ -988,6 +1126,17 @@ static int __devinit sc16is7x2_probe(struct i2c_client *client,
     /* default settings at probe */
     data->client = client;
     i2c_set_clientdata(client, data);
+
+    // pdata = client->data.platform_data;
+
+    /* TODO: do something */
+#if 0
+    //    ret = sc16is7x2_probe_dt(ts, client);
+    //    if (ret > 0)
+    //        sc16is7x2_probe_pdata(ts, client);
+    //    else if (ret < 0)
+    //        return ret;
+#endif
 
     data->uartclk = pdata->uartclk;
     data->uart_base = pdata->uart_base;
@@ -1038,6 +1187,17 @@ static int __devinit sc16is7x2_probe(struct i2c_client *client,
            data->client->irq,
            data->uart_base, data->uart_base + 1,
            data->gpio_base);
+
+    sc16is7x2_startup(&data->channel[0].uart);
+
+    printk(KERN_INFO "TLR: %08x\n", sc16is7x2_read(client, 7, 0));
+    printk(KERN_INFO "LCR: %08x\n", sc16is7x2_read(client, UART_LCR, 0));
+    printk(KERN_INFO "MCR: %08x\n", sc16is7x2_read(client, UART_MCR, 0));
+    printk(KERN_INFO "EFR: %08x\n", sc16is7x2_read(client, UART_EFR, 0));
+    printk(KERN_INFO "LSR: %08x\n", sc16is7x2_read(client, UART_LSR, 0));
+    printk(KERN_INFO "IER: %08x\n", sc16is7x2_read(client, UART_IER, 0));
+    printk(KERN_INFO "EFCR: %08x\n", sc16is7x2_read(client, 0xF, 0));
+
     return 0;
 
 exit:
@@ -1139,10 +1299,10 @@ static void __exit sc16is7x2_exit(void)
 }
 
 module_init(sc16is7x2_init);
-
+//subsys_initcall(sc16is7x2_init);
 module_exit(sc16is7x2_exit);
 
-MODULE_AUTHOR("Andrew Gazizov");
+MODULE_AUTHOR("artthevan");
 MODULE_DESCRIPTION("SC16IS7x2 I2C based UART chip");
 MODULE_LICENSE("GPL");
-
+//MODULE_ALIAS("I2C:" DRIVER_NAME);

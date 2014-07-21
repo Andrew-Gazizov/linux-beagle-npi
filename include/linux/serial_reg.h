@@ -37,6 +37,8 @@
 #define UART_IIR_THRI		0x02 /* Transmitter holding register empty */
 #define UART_IIR_RDI		0x04 /* Receiver data interrupt */
 #define UART_IIR_RLSI		0x06 /* Receiver line status interrupt */
+#define UART_IIR_RTOI		0x0C /* Receiver time-out interrupt */
+
 
 #define UART_IIR_BUSY		0x07 /* DesignWare APB Busy Detect */
 

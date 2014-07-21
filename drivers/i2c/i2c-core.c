@@ -444,12 +444,12 @@ static int i2c_check_addr_busy(struct i2c_adapter *adapter, int addr)
  */
 void i2c_lock_adapter(struct i2c_adapter *adapter)
 {
-	struct i2c_adapter *parent = i2c_parent_is_i2c_adapter(adapter);
+    struct i2c_adapter *parent = i2c_parent_is_i2c_adapter(adapter);
 
-	if (parent)
-		i2c_lock_adapter(parent);
-	else
-		rt_mutex_lock(&adapter->bus_lock);
+    if (parent)
+        i2c_lock_adapter(parent);
+    else
+        rt_mutex_lock(&adapter->bus_lock);
 }
 EXPORT_SYMBOL_GPL(i2c_lock_adapter);
 
@@ -1331,12 +1331,12 @@ int i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 #endif
 
 		if (in_atomic() || irqs_disabled()) {
-			ret = i2c_trylock_adapter(adap);
-			if (!ret)
+            ret = i2c_trylock_adapter(adap);
+            if (!ret)
 				/* I2C activity is ongoing. */
-				return -EAGAIN;
+            return -EAGAIN;
 		} else {
-			i2c_lock_adapter(adap);
+            i2c_lock_adapter(adap);
 		}
 
 		/* Retry automatically on arbitration loss */
@@ -1348,7 +1348,7 @@ int i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 			if (time_after(jiffies, orig_jiffies + adap->timeout))
 				break;
 		}
-		i2c_unlock_adapter(adap);
+        i2c_unlock_adapter(adap);
 
 		return ret;
 	} else {
@@ -2092,11 +2092,11 @@ s32 i2c_smbus_xfer(struct i2c_adapter *adapter, u16 addr, unsigned short flags,
 	unsigned long orig_jiffies;
 	int try;
 	s32 res;
-
 	flags &= I2C_M_TEN | I2C_CLIENT_PEC;
 
 	if (adapter->algo->smbus_xfer) {
-		i2c_lock_adapter(adapter);
+        printk("If true:\n");
+        i2c_lock_adapter(adapter);
 
 		/* Retry automatically on arbitration loss */
 		orig_jiffies = jiffies;
@@ -2110,7 +2110,7 @@ s32 i2c_smbus_xfer(struct i2c_adapter *adapter, u16 addr, unsigned short flags,
 				       orig_jiffies + adapter->timeout))
 				break;
 		}
-		i2c_unlock_adapter(adapter);
+        i2c_unlock_adapter(adapter);
 	} else
 		res = i2c_smbus_xfer_emulated(adapter, addr, flags, read_write,
 					      command, protocol, data);

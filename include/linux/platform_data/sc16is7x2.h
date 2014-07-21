@@ -14,4 +14,8 @@ char	*label;
 const char	*const *names;
 };
 
+static void sc16is7x2_handle_channel(struct work_struct *w);
+static int sc16is7x2_handle_rx(struct i2c_client *client, unsigned ch);
+
+
 #endif

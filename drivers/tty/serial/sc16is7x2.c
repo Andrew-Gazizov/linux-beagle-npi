@@ -540,7 +540,7 @@ static int sc16is7x2_startup(struct uart_port *port)
     sc16is7x2_read_status(ts, ch);
 
     /* Initialize work queue */
-    chan->workqueue = create_freezeable_workqueue("sc16is7x2");
+    chan->workqueue = create_workqueue("sc16is7x2");
     if (!chan->workqueue) {
         dev_err(&ts->spi->dev, "Workqueue creation failed\n");
         return -EBUSY;
